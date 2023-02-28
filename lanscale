@@ -90,7 +90,9 @@ public::init(){
 }
 
 public::deinit(){
-    declare -A __peers __data;
+    declare -A __peers __data __local_hub __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
 
     if [[ -p /dev/stdin ]]; then
         __data=$(< /dev/stdin);
@@ -100,19 +102,21 @@ public::deinit(){
 
     while read -a objects; do
         __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq '.' <<< $__data)
+    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
+
+    __local_hub=$(yq '.name' <<< $__data);
 
     # CascadeOffline [name]
-    $vpncmd /hub:${__peers[hub]} /cmd CascadeOffline ${__peers[name]} |& grep -A 3 ^CascadeOffline;
+    $vpncmd /hub:$__local_hub /cmd CascadeOffline ${__peers[name]} |& grep -A 3 ^CascadeOffline;
 
     # CascadeDelete [name]
-    $vpncmd /hub:${__peers[hub]} /cmd CascadeDelete ${__peers[name]} |& grep -A 3 ^CascadeDelete;
+    $vpncmd /hub:$__local_hub /cmd CascadeDelete ${__peers[name]} |& grep -A 3 ^CascadeDelete;
 
     # BridgeDelete [hubname] [/DEVICE:device_name]
-    $vpncmd /cmd  BridgeDelete ${__peers[hub]} /device:${__peers[hub]} |& grep -A 3 ^BridgeDelete;
+    $vpncmd /cmd  BridgeDelete $__local_hub /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeDelete;
 
     # HubDelete [name]
-    $vpncmd /cmd HubDel ${__peers[hub]} |& grep -A 3 ^HubDel;
+    { $vpncmd /cmd HubDel $__local_hub |& grep -A 3 ^HubDel; } || true;
 }
 
 
