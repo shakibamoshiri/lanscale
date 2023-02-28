@@ -139,7 +139,7 @@ public::get(){
 }
 
 public::list(){
-    declare -A __peers __data;
+    declare -A __local_hub __data;
 
     if [[ -p /dev/stdin ]]; then
         __data=$(< /dev/stdin);
@@ -147,12 +147,10 @@ public::list(){
         exit $ERR_EXPR_FAILED;
     fi
 
-    while read -a objects; do
-        __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq '.' <<< $__data)
+    __local_hub=$(yq '.name' <<< $__data);
 
     # CascadeOnline [name]
-    $vpncmd /hub:${__peers[hub]} /cmd CascadeList |& grep ^CascadeList -A 1000;
+    $vpncmd /hub:$__local_hub /cmd CascadeList |& grep ^CascadeList -A 1000;
 }
 
 public::peers(){
