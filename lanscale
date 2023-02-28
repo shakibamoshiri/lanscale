@@ -77,7 +77,7 @@ public::init(){
     { $vpncmd /cmd HubCreate ${__peers[hub]} /password:${__server[pass]} |& grep -A 3 ^HubCreate; } || true;
 
     # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
-    $vpncmd /cmd BridgeCreate ${__peers[hub]} /tap:yes /device:${__peers[hub]} |& grep -A 3 ^BridgeCreate;
+    $vpncmd /cmd BridgeCreate ${__peers[hub]} /tap:yes /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeCreate;
 
     # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
     $vpncmd /hub:${__peers[hub]} /cmd CascadeCreate ${__peers[name]} /server:${__peers[host]}:${__peers[port]}  /hub:${__peers[hub]} /username:${__peers[user]} |& grep -A 3 ^CascadeCreate;
@@ -85,6 +85,33 @@ public::init(){
     # CascadePasswordSet [name] [/PASSWORD:password] [/TYPE:standard|radius]
     $vpncmd /hub:${__peers[hub]} /cmd CascadePasswordSet ${__peers[name]} /password:${__peers[pass]} /type:standard  |& grep -A 3 ^CascadePasswordSet;
 }
+
+public::deinit(){
+    declare -A __peers __data;
+
+    if [[ -p /dev/stdin ]]; then
+        __data=$(< /dev/stdin);
+    else
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    while read -a objects; do
+        __peers[${objects[0]%:}]=${objects[1]};
+    done < <(yq '.' <<< $__data)
+
+    # CascadeOffline [name]
+    $vpncmd /hub:${__peers[hub]} /cmd CascadeOffline ${__peers[name]} |& grep -A 3 ^CascadeOffline;
+
+    # CascadeDelete [name]
+    $vpncmd /hub:${__peers[hub]} /cmd CascadeDelete ${__peers[name]} |& grep -A 3 ^CascadeDelete;
+
+    # BridgeDelete [hubname] [/DEVICE:device_name]
+    $vpncmd /cmd  BridgeDelete ${__peers[hub]} /device:${__peers[hub]} |& grep -A 3 ^BridgeDelete;
+
+    # HubDelete [name]
+    $vpncmd /cmd HubDel ${__peers[hub]} |& grep -A 3 ^HubDel;
+}
+
 
 
 public::get(){
