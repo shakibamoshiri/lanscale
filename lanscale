@@ -121,6 +121,39 @@ public::deinit(){
     { $vpncmd /cmd HubDel $__local_hub |& grep -A 3 ^HubDel; } || true;
 }
 
+public::online(){
+    declare __data __local_hub __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
+
+    if [[ -p /dev/stdin ]]; then
+        __data=$(< /dev/stdin);
+    else
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    __local_hub=$(yq '.name' <<< $__data);
+
+    # CascadeOnline [name]
+    $vpncmd /hub:$__local_hub /cmd CascadeOnline $__p_cc_name |& grep ^CascadeOnline -A 100;
+}
+
+public::offline(){
+    declare __data __local_hub __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
+
+    if [[ -p /dev/stdin ]]; then
+        __data=$(< /dev/stdin);
+    else
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    __local_hub=$(yq '.name' <<< $__data);
+
+    # CascadeOffline [name]
+    $vpncmd /hub:$__local_hub /cmd CascadeOffline $__p_cc_name |& grep ^CascadeOffline -A 100;
+}
 
 
 public::get(){
