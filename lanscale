@@ -60,7 +60,9 @@ declare -r vpncmd="${__server[vpncmd]} ${__server[host]}:${__server[port]} /serv
 
 
 public::init(){
-    declare -A __peers __data;
+    declare -A __peers __data __local_hub __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
 
     if [[ -p /dev/stdin ]]; then
         __data=$(< /dev/stdin);
@@ -70,20 +72,21 @@ public::init(){
 
     while read -a objects; do
         __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq '.' <<< $__data)
+    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
 
+    __local_hub=$(yq '.name' <<< $__data);
 
     # HubCreate [name] [/PASSWORD:password]
-    { $vpncmd /cmd HubCreate ${__peers[hub]} /password:${__server[pass]} |& grep -A 3 ^HubCreate; } || true;
+    { $vpncmd /cmd HubCreate $__local_hub /password:${__server[pass]} |& grep -A 3 ^HubCreate; } || true;
 
     # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
-    $vpncmd /cmd BridgeCreate ${__peers[hub]} /tap:yes /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeCreate;
+    $vpncmd /cmd BridgeCreate $__local_hub /tap:yes /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeCreate;
 
     # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
-    $vpncmd /hub:${__peers[hub]} /cmd CascadeCreate ${__peers[name]} /server:${__peers[host]}:${__peers[port]}  /hub:${__peers[hub]} /username:${__peers[user]} |& grep -A 3 ^CascadeCreate;
+    $vpncmd /hub:$__local_hub /cmd CascadeCreate ${__peers[name]} /server:${__peers[host]}:${__peers[port]}  /hub:${__peers[hub]} /username:${__peers[user]} |& grep -A 3 ^CascadeCreate;
 
     # CascadePasswordSet [name] [/PASSWORD:password] [/TYPE:standard|radius]
-    $vpncmd /hub:${__peers[hub]} /cmd CascadePasswordSet ${__peers[name]} /password:${__peers[pass]} /type:standard  |& grep -A 3 ^CascadePasswordSet;
+    $vpncmd /hub:$__local_hub /cmd CascadePasswordSet ${__peers[name]} /password:${__peers[pass]} /type:standard  |& grep -A 3 ^CascadePasswordSet;
 }
 
 public::deinit(){
@@ -154,11 +157,11 @@ public::peers(){
         exit $EXIT_SUCCESS;
     fi
 
-    declare __p_hub_name="${1:? ... Error: peers hub name?}";
+    declare __local_hub="${1:? ... Error: peers hub name?}";
     shift 1;
 
     if [[ -z ${1:-} ]]; then
-        yq ".peers[] | select(.name==\"$__p_hub_name\") | .cascades[].name" <<< "$__yaml"
+        yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[].name" <<< "$__yaml"
         exit $EXIT_SUCCESS;
     fi
 
@@ -173,15 +176,17 @@ public::peers(){
     fi
     
     declare __p_action="${1:? ... Error: peers hub cc action??}";
-    shift 1;
 
+    shift 1;
     if [[ $__p_action == 'print' ]]; then
-        yq ".peers[] | select(.name==\"$__p_hub_name\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml";
+        yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml";
+        # yq ".peers[] | select(.name==\"$__local_hub\") " <<< "$__yaml";
     else
         cd ${__server[vpncmd]%vpncmd};
-        yq ".peers[] | select(.name==\"$__p_hub_name\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml" | public::${__p_action};
+        # yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml" | public::${__p_action};
+        yq ".peers[] | select(.name==\"$__local_hub\")" <<< "$__yaml" | public::${__p_action} $__p_cc_name;
     fi
-    # $vpncmd /hub:$__p_hub_name /cmd help;
+    # $vpncmd /hub:$__local_hub /cmd help;
 
 }
 
