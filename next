@@ -490,6 +490,226 @@ public::server(){
     echo done;
 }
 
+
+private::hub_add(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # HubCreate [name] [/PASSWORD:password]
+        ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
+            HubCreate ${__hub[hub]} /PASSWORD:${__hub[pass]} | column -s, -t;
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_delete(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # HubCreate [name] [/PASSWORD:password]
+        ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
+            HubDelete ${__hub[hub]} | column -s, -t
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_online(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # Hub/Online
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            Online | column -s, -t;
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_offline(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # Hub/Offline
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            Offline | column -s, -t;
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_status(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # Hub/StatusGet
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            StatusGet | column -s, -t;
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_list(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # HubList
+        ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
+            HubList | column -s, -t;
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+# Hub              - Select Virtual Hub to Manage
+# HubCreate        - Create New Virtual Hub
+# HubCreateDynamic - Create New Dynamic Virtual Hub (For Clustering)
+# HubCreateStatic  - Create New Static Virtual Hub (For Clustering)
+# HubDelete        - Delete Virtual Hub
+# HubList          - Get List of Virtual Hubs
+# HubSetDynamic    - Change Virtual Hub Type to Dynamic Virtual Hub
+# HubSetStatic     - Change Virtual Hub Type to Static Virtual Hub
+public::hubs(){
+    declare -A __hub_info __server_info __action_list __;
+    declare -a __action_list_order;
+    declare __server_name __hub_name __action __function;
+
+    __action_list_order=(add delete online offline status list);
+
+    __action_list[add]='add a hub'
+    __action_list[delete]='delete a hub'
+    __action_list[online]='make a hub online'
+    __action_list[offline]='make a hub offline'
+    __action_list[list]='list all hub(s)'
+    __action_list[status]='status a hub offline'
+
+    ### match server name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq '.hubs | keys | .[]' <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __server_name=${1};
+    shift 1;
+    
+    ### lookup server info in .servers
+    while read -a objects; do
+        __server_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".server.${__server_name}" <<< "$__yaml");
+
+    if [[ -n  ${__server_info[link]:-} ]]; then
+        __server_info[cmd]="${__server_info[path]}/stable/vpncmd";
+    else
+        __server_info[cmd]="${__server_info[path]}/dev/build/vpncmd";
+    fi
+    
+    private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
+    private::debug $LINENO '__server_info[@]:' "'${__server_info[@]}'";
+
+    ### match hub name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq ".hubs.${__server_name}[].hub" <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __hub_name=${1};
+    shift 1;
+
+    while read -a objects; do
+        __hub_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".hubs.${__server_name}[] | select(.hub==\"${__hub_name}\") " <<< "$__yaml");
+
+    private::debug $LINENO '!__hub_info[@]:' "'${!__hub_info[@]}'";
+    private::debug $LINENO '__hub_info[@]:' "'${__hub_info[@]}'";
+
+    if [[ -z ${1:-} ]]; then
+        for value in ${__action_list_order[@]}; do
+            printf '%-10s %s\n' $value "${__action_list[$value]}"
+        done
+        exit $EXIT_SUCCESS;
+    else
+        __action="$1";
+    fi
+
+
+
+
+    case ${__action} in
+        add | delete | online | offline | status | list )
+            printf 'object: %s\n' ${FUNCNAME##*:}
+            printf 'server: %s\n' $__server_name;
+            printf 'hub: %s\n'  $__hub_name
+            printf 'action: %s\n' $__action
+            read -p 'continue? [p/n/Y] ';
+            if [[ $REPLY == Y || $REPLY == y ]]; then
+                 ssh ${__server_info[ssh]} "$(private::hub_${__action} __server_info __hub_info)";
+            elif [[ $REPLY == p ]]; then
+                private::hub_${__action} __server_info __hub_info;
+            else
+                printf 'cancelled!\n';
+            fi
+
+        ;;
+        * )
+            printf 'action %s not found\n' $__action;
+            exit $ERR_EXPR_FAILED;
+        ;;
+    esac
+
+    echo done;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 private::user_add(){
     declare -n __user=${1};
     declare -n __hub=${2};
@@ -506,6 +726,7 @@ private::user_add(){
 
     printf '%s\n' "$lanscale_ssh_fn";
 }
+
 private::user_delete(){
     declare -n __user=${1};
     declare -n __hub=${2};
@@ -775,13 +996,50 @@ private::main_help(){
     exit ${1:-1};
 }
 
+private::parse_options(){
+    if (( ${#} == 0 )); then
+        private::main_help 0;
+    fi
+
+    case $1 in
+        -h | --help )
+            private::main_help 0;
+        ;;
+        -d | --debug )
+            SCRIPT_DEBUG_FLAG=true
+            shift;
+        ;;
+        -D | --debug-x )
+            private::debug_x;
+            shift;
+        ;;
+        -e | --example )
+            private::example;
+            shift;
+        ;;
+        -v | --version )
+            private::cli_version;
+            shift;
+        ;;
+        -i | --install )
+            private::cli_install;
+        ;;
+    esac
+
+    if (( ${#} != 0 )); then
+        private::debug $LINENO continue-main: "'$@'";
+        private::main "$@";
+    fi
+}
+
+
 private::main(){
     if (( ${#} == 0 )); then
         private::main_help 0;
     fi
 
     case ${1} in
-        help | peers | server | users )
+        help | peers | server | hubs | users )
             private::debug $LINENO 'command:' "'${1}'";
             private::debug $LINENO 'command-options:' "'${@:2}'";
             public::${1} "${@:2}";
