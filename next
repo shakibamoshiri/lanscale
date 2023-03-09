@@ -484,10 +484,8 @@ public::server(){
     elif [[ $REPLY == p ]]; then
         private::$__s_action __s_info;
     else
-        printf 'cancelled!\n';
+        printf 'cancelled\n';
     fi
-
-    echo done;
 }
 
 
@@ -680,7 +678,7 @@ public::hubs(){
             elif [[ $REPLY == p ]]; then
                 private::hub_${__action} __server_info __hub_info;
             else
-                printf 'cancelled!\n';
+                printf 'cancelled\n';
             fi
 
         ;;
@@ -708,13 +706,14 @@ public::hubs(){
 
 
 private::user_add(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         # UserCreate [name] [/GROUP:group] [/REALNAME:realname] [/NOTE:note]
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV /CMD \
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
             UserCreate ${__user[username]} /GROUP: /REALNAME:${__user[realname]} /NOTE:${__user[note]};
     }";
 
@@ -725,13 +724,14 @@ private::user_add(){
 }
 
 private::user_delete(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         # UserDelete [name]
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV /CMD \
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
             UserDelete ${__user[username]};
     }";
 
@@ -741,13 +741,14 @@ private::user_delete(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 private::user_pass(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         # UserPasswordSet [name] [/PASSWORD:password]
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV /CMD \
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
             UserPasswordSet ${__user[username]} /PASSWORD:${__user[password]}
     }";
 
@@ -757,13 +758,14 @@ private::user_pass(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 private::user_date(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         # UserExpiresSet [name] [/EXPIRES:expires]
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV /CMD \
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
             UserExpiresSet ${__user[username]} /EXPIRES:\"${__user[expire]} 23:59:59\"
     }";
 
@@ -773,13 +775,14 @@ private::user_date(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 private::user_set(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         #  UserSet [name] [/GROUP:group] [/REALNAME:realname] [/NOTE:note]
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV /CMD \
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
             UserSet ${__user[username]} /GROUP:${__user[group]} /REALNAME:${__user[realname]} /NOTE:${__user[note]}
     }";
 
@@ -789,12 +792,15 @@ private::user_set(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 private::user_get(){
-    declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
+    declare -n __user=${3};
     
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV  /CMD UserGet ${__user[username]} | column -s, -t
+        # UserGet [name]
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
+            UserGet ${__user[username]} | column -s, -t
     }";
 
     eval "$lanscale_ssh_fn";
@@ -805,11 +811,13 @@ private::user_get(){
 
 private::user_list(){
     declare -n __user=${1};
+    declare -n __server=${1};
     declare -n __hub=${2};
     
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        ${__hub[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__hub[pass]} /CSV  /CMD UserList | column -s, -t
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
+            UserList | column -s, -t
     }";
 
     eval "$lanscale_ssh_fn";
@@ -819,7 +827,7 @@ private::user_list(){
 }
 
 public::users(){
-    declare -A __user_info __hub_info __action_list;
+    declare -A __server_info __user_info __hub_info __action_list;
     declare -a __action_list_order;
     declare __server_name __hub_name __user_name __action __function;
 
@@ -839,9 +847,23 @@ public::users(){
         done < <(yq '.users | keys | .[]' <<< "$__yaml");
         exit $EXIT_SUCCESS;
     fi
-
-    __server_name=${1};
+    __server_name="${1:? ... Error: __server_name ?}";
     shift 1;
+
+    ### lookup server info in .servers
+    while read -a objects; do
+        __server_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".servers.${__server_name}" <<< "$__yaml");
+
+    if [[ -n  ${__server_info[link]:-} ]]; then
+        __server_info[cmd]="${__server_info[path]}/stable/vpncmd";
+    else
+        __server_info[cmd]="${__server_info[path]}/dev/build/vpncmd";
+    fi
+    
+    private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
+    private::debug $LINENO '__server_info[@]:' "'${__server_info[@]}'";
+
     if [[ -z ${1:-} ]]; then
         while read name; do
             printf '%s\n' $name;
@@ -856,6 +878,9 @@ public::users(){
         __hub_info[${objects[0]%:}]=${objects[1]};
     done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | del(.users)" <<< "$__yaml");
 
+    private::debug $LINENO '!__hub_info[@]:' "'${!__hub_info[@]}'";
+    private::debug $LINENO '__hub_info[@]:' "'${__hub_info[@]}'";
+
     if [[ -z ${1:-} ]]; then
         while read name; do
             printf '%s\n' $name;
@@ -869,7 +894,10 @@ public::users(){
         __user_info[${objects[0]%:}]=${objects[1]};
     done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .users[] | select(.username==\"${__user_name}\") " <<< "$__yaml");
 
-    echo __user_info: "${__user_info[@]}"
+    if [[ -z ${__user_info[username]:-} ]]; then
+        printf 'user: %s not found in %s of server %s\n' $__user_name $__hub_name $__server_name;
+        exit $ERR_EXPR_FAILED;
+    fi
 
 
     if [[ -z ${1:-} ]]; then
@@ -883,13 +911,17 @@ public::users(){
 
     case ${__action} in
         add | delete | pass | date | set | get | list )
+            printf 'object: %s\n' ${FUNCNAME##*:}
+            printf 'server: %s\n' $__server_name;
+            printf 'hub: %s\n'  $__hub_name
+            printf 'action: %s\n' $__action
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
-                 ssh ${__hub_info[ssh]} "$(private::user_${__action} __user_info __hub_info)";
+                 ssh ${__hub_info[ssh]} "$(private::user_${__action} __server_info __hub_info __user_info)";
             elif [[ $REPLY == p ]]; then
-                private::user_${__action} __user_info __hub_info
+                private::user_${__action} __server_info __hub_info __user_info;
             else
-                printf 'cancelled!\n';
+                printf 'cancelled\n';
             fi
 
         ;;
@@ -898,8 +930,6 @@ public::users(){
             exit $ERR_EXPR_FAILED;
         ;;
     esac
-
-    echo done;
 }
 
 
