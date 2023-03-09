@@ -689,9 +689,6 @@ public::hubs(){
             exit $ERR_EXPR_FAILED;
         ;;
     esac
-
-    echo done;
-
 }
 
 
@@ -824,7 +821,7 @@ private::user_list(){
 public::users(){
     declare -A __user_info __hub_info __action_list;
     declare -a __action_list_order;
-    declare __s_name __hub_name __user_name __u_action __function;
+    declare __server_name __hub_name __user_name __action __function;
 
     __action_list_order=(add delete pass date set get list);
 
@@ -843,12 +840,12 @@ public::users(){
         exit $EXIT_SUCCESS;
     fi
 
-    __s_name=${1};
+    __server_name=${1};
     shift 1;
     if [[ -z ${1:-} ]]; then
         while read name; do
             printf '%s\n' $name;
-        done < <(yq ".users.${__s_name}[].hub" <<< "$__yaml");
+        done < <(yq ".users.${__server_name}[].hub" <<< "$__yaml");
         exit $EXIT_SUCCESS;
     fi
 
@@ -857,12 +854,12 @@ public::users(){
 
     while read -a objects; do
         __hub_info[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".users.${__s_name}[] | select(.hub==\"${__hub_name}\") | del(.users)" <<< "$__yaml");
+    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | del(.users)" <<< "$__yaml");
 
     if [[ -z ${1:-} ]]; then
         while read name; do
             printf '%s\n' $name;
-        done < <(yq ".users.${__s_name}[] | select(.hub==\"${__hub_name}\") | .users[].username " <<< "$__yaml");
+        done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .users[].username " <<< "$__yaml");
         exit $EXIT_SUCCESS;
     fi
 
@@ -870,7 +867,7 @@ public::users(){
     shift 1;
     while read -a objects; do
         __user_info[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".users.${__s_name}[] | select(.hub==\"${__hub_name}\") | .users[] | select(.username==\"${__user_name}\") " <<< "$__yaml");
+    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .users[] | select(.username==\"${__user_name}\") " <<< "$__yaml");
 
     echo __user_info: "${__user_info[@]}"
 
@@ -881,23 +878,23 @@ public::users(){
         done
         exit $EXIT_SUCCESS;
     else
-        __u_action="$1";
+        __action="$1";
     fi
 
-    case ${__u_action} in
+    case ${__action} in
         add | delete | pass | date | set | get | list )
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
-                 ssh ${__hub_info[ssh]} "$(private::user_${__u_action} __user_info __hub_info)";
+                 ssh ${__hub_info[ssh]} "$(private::user_${__action} __user_info __hub_info)";
             elif [[ $REPLY == p ]]; then
-                private::user_${__u_action} __user_info __hub_info
+                private::user_${__action} __user_info __hub_info
             else
                 printf 'cancelled!\n';
             fi
 
         ;;
         * )
-            printf 'action %s not found\n' $__u_action;
+            printf 'action %s not found\n' $__action;
             exit $ERR_EXPR_FAILED;
         ;;
     esac
