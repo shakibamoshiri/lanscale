@@ -568,7 +568,13 @@ private::hub_add(){
         set -x;
         # HubCreate [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
-            HubCreate ${__hub[hub]} /PASSWORD:${__hub[pass]} | column -s, -t;
+            HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]} | column -s, -t;
+
+        # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
+        # DO NOT ADD hub for /SERVER
+        # it did not work
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            BridgeCreate ${__hub[hub]} /TAP:yes /DEVICE:${__hub[hub]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -585,7 +591,10 @@ private::hub_delete(){
         set -x;
         # HubCreate [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
-            HubDelete ${__hub[hub]} | column -s, -t
+            HubDelete ${__hub[hub]}
+
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            BridgeDelete ${__hub[hub]} /DEVICE:${__hub[hub]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -670,6 +679,12 @@ private::hub_list(){
 # HubList          - Get List of Virtual Hubs
 # HubSetDynamic    - Change Virtual Hub Type to Dynamic Virtual Hub
 # HubSetStatic     - Change Virtual Hub Type to Static Virtual Hub
+#
+#
+# BridgeCreate     - Create Local Bridge Connection
+# BridgeDelete     - Delete Local Bridge Connection
+# BridgeDeviceList - Get List of Network Adapters Usable as Local Bridge
+# BridgeList       - Get List of Local Bridge Connection
 public::hubs(){
     declare -A __hub_info __server_info __action_list __;
     declare -a __action_list_order;
@@ -998,6 +1013,238 @@ public::users(){
 }
 
 
+private::cascade_add(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __peer=${3};
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}/build";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        test -f ${__bin_path}/vpncmd
+        test -f ${__bin_path}/vpnserver
+
+        # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
+        # CascadeCreate ${__peer[name]} /server:${__peer[host]}:${__peer[port]}  /HUB:${__peer[hub]} /USERNAME:${__peer[user]}
+        $__bin_path/vpncmd localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadeCreate ${__peer[name]} /server:${__peer[host]}:${__peer[port]}  /HUB:${__peer[hub]} /USERNAME:${__peer[user]}
+
+        # CascadePasswordSet [name] [/PASSWORD:password] [/TYPE:standard|radius]
+        $__bin_path/vpncmd localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadePasswordSet ${__peer[name]} /PASSWORD:${__peer[pass]} /type:standard
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::cascade_delete(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __peer=${3}
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        test -f ${__server[cmd]}
+
+        # CascadeDelete [name]
+        ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadeDelete ${__peer[name]} | column -s, -t
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::cascade_online(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __peer=${3}
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        test -f ${__server[cmd]}
+
+        # CascadeOnline [name]
+        ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadeOnline ${__peer[name]}
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::cascade_list(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __peer=${3}
+
+    echo __hub: "${__hub[@]}"
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        test -f ${__server[cmd]}
+
+        # CascadeList
+        # why admin cannot access a hub with addmin password
+        # ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+
+        ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadeList | column -s, -t
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+# CascadeAnonymousSet      - Set User Authentication Type of Cascade Connection to Anonymous Authentication
+# CascadeCertGet           - Get Client Certificate to Use for Cascade Connection
+# CascadeCertSet           - Set User Authentication Type of Cascade Connection to Client Certificate Authentication
+# CascadeCompressDisable   - Disable Data Compression when Communicating by Cascade Connection
+# CascadeCompressEnable    - Enable Data Compression when Communicating by Cascade Connection
+# CascadeCreate            - Create New Cascade Connection
+# CascadeDefaultCADisable  - Disable Trust System Certificate Store Option
+# CascadeDefaultCAEnable   - Enable Trust System Certificate Store Option
+# CascadeDelete            - Delete Cascade Connection Setting
+# CascadeDetailSet         - Set Advanced Settings for Cascade Connection
+# CascadeEncryptDisable    - Disable Encryption when Communicating by Cascade Connection
+# CascadeEncryptEnable     - Enable Encryption when Communicating by Cascade Connection
+# CascadeGet               - Get the Cascade Connection Setting
+# CascadeHttpHeaderAdd     - Add a custom value in the HTTP header sent to the proxy server
+# CascadeHttpHeaderDelete  - Delete a custom value in the HTTP header sent to the proxy server
+# CascadeHttpHeaderGet     - Get the list of custom values in the HTTP header sent to the proxy server
+# CascadeList              - Get List of Cascade Connections
+# CascadeOffline           - Switch Cascade Connection to Offline Status
+# CascadeOnline            - Switch Cascade Connection to Online Status
+# CascadePasswordSet       - Set User Authentication Type of Cascade Connection to Password Authentication
+# CascadePolicySet         - Set Cascade Connection Session Security Policy
+# CascadeProxyHttp         - Set Connection Method of Cascade Connection to be via an HTTP Proxy Server
+# CascadeProxyNone         - Specify Direct TCP/IP Connection as the Connection Method of Cascade Connection
+# CascadeProxySocks        - Set Connection Method of Cascade Connection to be via a SOCKS4 Proxy Server
+# CascadeProxySocks5       - Set Connection Method of Cascade Connection to be via a SOCKS5 Proxy Server
+# CascadeRename            - Change Name of Cascade Connection
+# CascadeServerCertDelete  - Delete the Server Individual Certificate for Cascade Connection
+# CascadeServerCertDisable - Disable Cascade Connection Server Certificate Verification Option
+# CascadeServerCertEnable  - Enable Cascade Connection Server Certificate Verification Option
+# CascadeServerCertGet     - Get the Server Individual Certificate for Cascade Connection
+# CascadeServerCertSet     - Set the Server Individual Certificate for Cascade Connection
+# CascadeSet               - Set the Destination for Cascade Connection
+# CascadeStatusGet         - Get Current Cascade Connection Status
+# CascadeUsernameSet       - Set User Name to Use Connection of Cascade Connection
+public::cascades(){
+    declare -A __server_info __hub_info __peer_info __action_list;
+    declare -a __action_list_order;
+    declare __action __server_info_name __hub_name __peer_info_name;
+
+    __action_list_order=(add delete online offline list);
+
+    __action_list[add]='add a cascade'
+    __action_list[delete]='delete a cascade'
+    __action_list[online]='make a cascade online'
+    __action_list[offline]='make a cascade offline'
+    __action_list[list]='list all cascades'
+
+    ### match server name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq '.cascades | keys | .[]' <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __server_info_name=${1};
+    shift 1;
+
+    ### lookup server info in .servers
+    while read -a objects; do
+        __server_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".servers.${__server_info_name}" <<< "$__yaml");
+
+    if [[ -n  ${__server_info[link]:-} ]]; then
+        __server_info[version]='stable';
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
+    else
+        __server_info[version]='dev';
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/build/vpncmd";
+    fi
+
+    private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
+    private::debug $LINENO '__server_info[@]:' "'${__server_info[@]}'";
+
+    ### match a hub name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq ".cascades.${__server_info_name}[].hub" <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __hub_name=${1};
+    __hub_info[hub]=${1};
+    shift 1;
+
+    ### match a peer name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq ".cascades.${__server_info_name}[] | select(.hub==\"${__hub_name}\") | .peers[].name" <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __peer_info_name=${1};
+    shift 1;
+
+    ### get a peer info
+    while read -a objects; do
+        __peer_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".cascades.${__server_info_name}[] | select(.hub==\"${__hub_name}\") | .peers[] | select(.name==\"${__peer_info_name}\")" <<< "$__yaml");
+
+    private::debug $LINENO '!__peer_info[@]:' "'${!__peer_info[@]}'";
+    private::debug $LINENO '__peer_info[@]:' "'${__peer_info[@]}'";
+
+
+
+    if [[ -z ${1:-} ]]; then
+        for value in ${__action_list_order[@]}; do
+            printf '%-10s %s\n' $value "${__action_list[$value]}"
+        done
+        exit $EXIT_SUCCESS;
+    else
+        __action="$1";
+    fi
+
+    case ${__action} in
+        add | delete | online | offline | set | get | list )
+            printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_info_name $__hub_name $__action;
+            printf 'peer < %s < %s < %s\n' ${__peer_info[host]} ${__peer_info[hub]} ${__peer_info[name]}
+            read -p 'continue? [p/n/Y] ';
+            if [[ $REPLY == Y || $REPLY == y ]]; then
+                 ssh ${__server_info[ssh]} "$(private::cascade_${__action} __server_info __hub_info __peer_info)";
+            elif [[ $REPLY == p ]]; then
+                private::cascade_${__action} __server_info __hub_info __peer_info;
+            else
+                printf 'cancelled\n';
+            fi
+
+        ;;
+        * )
+            printf 'action %s not found\n' $__action;
+            exit $ERR_EXPR_FAILED;
+        ;;
+    esac
+}
 
 
 
@@ -1131,7 +1378,7 @@ private::main(){
     fi
 
     case ${1} in
-        help | peers | servers | hubs | users )
+        help | peers | servers | hubs | users | cascades )
             private::debug $LINENO 'command:' "'${1}'";
             private::debug $LINENO 'command-options:' "'${@:2}'";
             public::${1} "${@:2}";
