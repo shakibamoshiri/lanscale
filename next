@@ -739,10 +739,7 @@ public::hubs(){
 
     case ${__action} in
         add | delete | online | offline | status | list )
-            printf 'object: %s\n' ${FUNCNAME##*:}
-            printf 'server: %s\n' $__server_name;
-            printf 'hub: %s\n'  $__hub_name
-            printf 'action: %s\n' $__action
+            printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
                  ssh ${__server_info[ssh]} "$(private::hub_${__action} __server_info __hub_info)";
@@ -982,13 +979,10 @@ public::users(){
 
     case ${__action} in
         add | delete | pass | date | set | get | list )
-            printf 'object: %s\n' ${FUNCNAME##*:}
-            printf 'server: %s\n' $__server_name;
-            printf 'hub: %s\n'  $__hub_name
-            printf 'action: %s\n' $__action
+            printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
-                 ssh ${__hub_info[ssh]} "$(private::user_${__action} __server_info __hub_info __user_info)";
+                 ssh ${__server_info[ssh]} "$(private::user_${__action} __server_info __hub_info __user_info)";
             elif [[ $REPLY == p ]]; then
                 private::user_${__action} __server_info __hub_info __user_info;
             else
