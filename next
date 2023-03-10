@@ -228,85 +228,77 @@ public::list(){
     $vpncmd /hub:$__local_hub /cmd CascadeList |& grep ^CascadeList -A 1000;
 }
 
-private::install_dev(){
-    declare -n __info=$1;
 
-    declare install_se_server="function install_se_server(){
-        set -x;
-        apt-get update -y
-        apt-get install -y build-essential git curl tree wget
-        apt-get install -y cmake gcc g++ make libncurses5-dev libssl-dev libsodium-dev libreadline-dev zlib1g-dev pkg-config
-        mkdir -p ${__info[path]}
-        cd ${__info[path]}
-        ls -la
-        git clone ${__info[repo]} dev || true
-        cd dev
-        git submodule init
-        git submodule update
-        ./configure
-        make -C build
-        cd build
-        ls -la
-    }";
 
-    eval "$install_se_server";
-    install_se_server="$(declare -f install_se_server); install_se_server;"
 
-    printf '%s\n' "$install_se_server";
+
+
+private::server_install(){
+    declare -n __server=$1;
+
+    if [[ ${__server[version]} == stable ]]; then
+        declare install_se_stable="function install_se_stable(){
+            set -x;
+            apt-get update -y
+            apt-get install -y build-essential git curl tree wget
+            mkdir -p ${__server[path]}
+            cd ${__server[path]}
+            ls -la
+            wget --show-progress -qc  ${__server[link]}
+            tar xzf ${__server[link]##*/}
+            test -f vpnserver
+            chmod 0755 vpnserver
+            mv vpnserver stable
+            cd stable
+            chmod 600 *
+            make
+            ls -la
+        }";
+
+        eval "$install_se_stable";
+        install_se_stable="$(declare -f install_se_stable); install_se_stable;"
+
+        printf '%s\n' "$install_se_stable";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        declare install_se_dev="function install_se_dev(){
+            set -x;
+            apt-get update -y
+            apt-get install -y build-essential git curl tree wget
+            apt-get install -y cmake gcc g++ make libncurses5-dev libssl-dev libsodium-dev libreadline-dev zlib1g-dev pkg-config
+            mkdir -p ${__server[path]}
+            cd ${__server[path]}
+            ls -la
+            git clone ${__server[repo]} dev || true
+            cd dev
+            git submodule init
+            git submodule update
+            ./configure
+            make -C build
+            cd build
+            ls -la
+        }";
+
+        eval "$install_se_dev";
+        install_se_dev="$(declare -f install_se_dev); install_se_dev;"
+
+        printf '%s\n' "$install_se_dev";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
 }
 
 
-private::install_stable(){
-    declare -n __info=$1;
+private::server_systemd(){
+    declare -n __server=$1;
+    declare __bin_path;
 
-    declare install_se_server="function install_se_server(){
-        set -x;
-        apt-get update -y
-        apt-get install -y build-essential git curl tree wget
-        mkdir -p ${__info[path]}
-        cd ${__info[path]}
-        ls -la
-        wget --show-progress -qc  ${__info[link]}
-        tar xzf ${__info[link]##*/}
-        test -f vpnserver
-        chmod 0755 vpnserver
-        mv vpnserver stable
-        cd stable
-        chmod 600 *
-        make
-        ls -la
-    }";
-
-    eval "$install_se_server";
-    install_se_server="$(declare -f install_se_server); install_se_server;"
-
-    printf '%s\n' "$install_se_server";
-}
-
-private::pass_stable(){
-    declare -n __info=$1;
-
-    # vpncmd [host:port] [/CLIENT|/SERVER|/TOOLS] [/HUB:hub] [/ADMINHUB:adminhub] [/PASSWORD:password] [/IN:infile] [/OUT:outfile] [/CMD commands...]
-
-    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
-        set -x;
-        cd ${__info[path]}/stable;
-        test -f ./vpnserver
-        ./vpncmd localhost:443 /SERVER /PASSWORD: /cmd HubDel DEFAULT
-        ./vpncmd localhost:443 /SERVER /PASSWORD: /cmd HubCreate ${__info[hub]} /PASSWORD:${__info[pass]}
-        ./vpncmd localhost:443 /SERVER /PASSWORD: /cmd HubList
-        ./vpncmd localhost:443 /SERVER /PASSWORD: /cmd ServerPasswordSet ${__info[pass]}
-    }";
-
-    eval "$lanscale_ssh_fn";
-    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
-
-    printf '%s\n' "$lanscale_ssh_fn";
-}
-
-private::systemd_stable(){
-    declare -n __info=$1;
-    declare -r __bin_path="${__info[path]}/stable";
+    if [[ ${__server[version]} == 'stable' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}/build";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
 
     declare install_systemd="function install_systemd(){
         set -x;
@@ -331,7 +323,7 @@ ReadOnlyDirectories=/
 ReadWriteDirectories=-${__bin_path}
 
 [Install]
-WantedBy=multi-user.target' > /usr/lib/systemd/system/se-stable.service;
+WantedBy=multi-user.target' > /usr/lib/systemd/system/se-${__server[version]}.service;
 
         systemctl daemon-reload
     }";
@@ -342,52 +334,170 @@ WantedBy=multi-user.target' > /usr/lib/systemd/system/se-stable.service;
     printf '%s\n' "$install_systemd";
 }
 
-private::systemd_dev(){
-    echo systemd dev ...
-}
+private::server_pass(){
+    declare -n __server=$1;
 
-private::start_stable(){
-    declare start_systemd="function start_systemd(){
+    if [[ ${__server[version]} == 'stable' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}/build";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    # vpncmd [host:port] [/CLIENT|/SERVER|/TOOLS] [/HUB:hub] [/ADMINHUB:adminhub] [/PASSWORD:password] [/IN:infile] [/OUT:outfile] [/CMD commands...]
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        systemctl start se-stable.service
+        test -f ${__bin_path}/vpncmd
+        test -f ${__bin_path}/vpnserver
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD: /cmd ServerPasswordSet ${__server[pass]}
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubDel DEFAULT
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubCreate ${__server[hub]} /PASSWORD:${__server[pass]}
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubList
     }";
 
-    eval "$start_systemd";
-    start_systemd="$(declare -f start_systemd); start_systemd;"
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
 
-    printf '%s\n' "$start_systemd";
+    printf '%s\n' "$lanscale_ssh_fn";
 }
 
-private::stop_stable(){
-    declare stop_systemd="function stop_systemd(){
+private::server_start(){
+    declare -n __server=$1;
+    declare lanscale_ssh_fn;
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl start se-stable.service
+        }";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl start se-dev.service
+        }";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::server_stop(){
+    declare -n __server=$1;
+    declare lanscale_ssh_fn;
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl stop se-stable.service
+        }";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl stop se-dev.service
+        }";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::server_restart(){
+    declare -n __server=$1;
+    declare lanscale_ssh_fn;
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl restart se-stable.service
+        }";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        lanscale_ssh_fn="function lanscale_ssh_fn(){
+            set -x;
+            systemctl restart se-dev.service
+        }";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::server_status(){
+    declare -n __server=$1;
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}/build";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        systemctl stop se-stable.service
+        test -f ${__bin_path}/vpncmd
+        test -f ${__bin_path}/vpnserver
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerStatusGet | column -s, -t;
     }";
 
-    eval "$stop_systemd";
-    stop_systemd="$(declare -f stop_systemd); stop_systemd;"
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
 
-    printf '%s\n' "$stop_systemd";
+    printf '%s\n' "$lanscale_ssh_fn";
 }
 
-private::restart_stable(){
-    declare restart_systemd="function restart_systemd(){
+private::server_info(){
+    declare -n __server=$1;
+
+    if [[ ${__server[version]} == 'stable' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}";
+    elif [[ ${__server[version]} == 'dev' ]]; then
+        __bin_path="${__server[path]}/${__server[version]}/build";
+    else
+        printf '%s has no match\n' ${__server[version]};
+    fi
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        systemctl restart se-stable.service
+        test -f ${__bin_path}/vpncmd
+        test -f ${__bin_path}/vpnserver
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerInfoGet | column -s, -t;
     }";
 
-    eval "$restart_systemd";
-    restart_systemd="$(declare -f restart_systemd); restart_systemd;"
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
 
-    printf '%s\n' "$restart_systemd";
+    printf '%s\n' "$lanscale_ssh_fn";
 }
 
+# ServerCertGet        - Get SSL Certificate of VPN Server
+# ServerCertRegenerate - Generate New Self-Signed Certificate with Specified CN (Common Name) and Register on VPN Server
+# ServerCertSet        - Set SSL Certificate and Private Key of VPN Server
+# ServerCipherGet      - Get the Encrypted Algorithm Used for VPN Communication.
+# ServerCipherSet      - Set the Encrypted Algorithm Used for VPN Communication.
+# ServerInfoGet        - Get server information
+# ServerKeyGet         - Get SSL Certificate Private Key of VPN Server
+# ServerPasswordSet    - Set VPN Server Administrator Password
+# ServerStatusGet      - Get Current Server Status
 public::servers(){
     declare -A __s_info __action_list;
     declare -a __action_list_order;
-    declare __s_name __s_action;
+    declare __s_name __s_action __server_version;
 
-    __action_list_order=(install systemd pass start stop restart);
+    __action_list_order=(install systemd pass start stop restart status info);
 
     __action_list[install]='install SoftEther VPN server'
     __action_list[systemd]='install systemd service'
@@ -395,6 +505,8 @@ public::servers(){
     __action_list[stop]='stop systemd service'
     __action_list[restart]='restart systemd service';
     __action_list[pass]='set password for admin';
+    __action_list[status]='get status of a server';
+    __action_list[info]='get information of a server';
 
     if [[ -z ${1:-} ]]; then
         while read name; do
@@ -420,56 +532,24 @@ public::servers(){
 
 
     if [[ -n  ${__s_info[link]:-} ]]; then
-        # echo link: ${__s_info[link]}
-        # private::install_stable __s_info;
-        # ssh ${__s_info[ssh]} "$(private::install_stable __s_info)"
-        __s_action+='_stable'
+        __s_info[version]='stable';
 
     else
         # echo repo: ${__s_info[repo]}
-        # private::install_dev __s_info;
-        # ssh ${__s_info[ssh]} "$(private::install_dev __s_info)"
-        __s_action+='_dev'
+        __s_info[version]='dev';
     fi
     
 
     case $__s_action in
-        install_stable )
-            echo ${__s_action//_/ };
-        ;;
-        install_dev )
-            echo ${__s_action//_/ };
-        ;;
-
-        pass_dev | pass_stable )
-            echo ${__s_action//_/ };
-        ;;
-
-        systemd_stable )
-            echo ${__s_action//_/ };
-        ;;
-        systemd_dev )
-            echo ${__s_action//_/ };
-        ;;
-
-        start_stable )
-            echo ${__s_action//_/ };
-        ;;
-        stop_stable  )
-            echo ${__s_action//_/ };
-        ;;
-        restart_stable  )
-            echo ${__s_action//_/ };
-        ;;
-
-        start_dev )
-            echo ${__s_action//_/ };
-        ;;
-        stop_dev  )
-            echo ${__s_action//_/ };
-        ;;
-        restart_dev  )
-            echo ${__s_action//_/ };
+        install | systemd | pass | start | stop | restart | status | info )
+            read -p 'continue? [p/n/Y] ';
+            if [[ $REPLY == Y || $REPLY == y ]]; then
+                ssh ${__s_info[ssh]} "$(private::server_$__s_action __s_info)"
+            elif [[ $REPLY == p ]]; then
+                private::server_$__s_action __s_info;
+            else
+                printf 'cancelled\n';
+            fi
         ;;
 
         * )
@@ -477,15 +557,6 @@ public::servers(){
             exit $ERR_EXPR_FAILED;
         ;;
     esac
-
-    read -p 'continue? [p/n/Y] ';
-    if [[ $REPLY == Y || $REPLY == y ]]; then
-        ssh ${__s_info[ssh]} "$(private::$__s_action __s_info)"
-    elif [[ $REPLY == p ]]; then
-        private::$__s_action __s_info;
-    else
-        printf 'cancelled\n';
-    fi
 }
 
 
