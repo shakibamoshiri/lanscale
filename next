@@ -351,10 +351,10 @@ private::server_pass(){
         set -x;
         test -f ${__bin_path}/vpncmd
         test -f ${__bin_path}/vpnserver
-        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD: /cmd ServerPasswordSet ${__server[pass]}
-        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubDel DEFAULT
-        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubCreate ${__server[hub]} /PASSWORD:${__server[pass]}
-        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /cmd HubList
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD: /CSV /CMD  ServerPasswordSet ${__server[pass]}
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD HubDel DEFAULT
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD HubCreate ${__server[hub]} /PASSWORD:${__server[pass]}
+        ${__bin_path}/vpncmd localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD HubList | column -s, -t
     }";
 
     eval "$lanscale_ssh_fn";
