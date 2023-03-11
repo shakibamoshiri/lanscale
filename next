@@ -361,7 +361,6 @@ public::servers(){
 
     case $__s_action in
         print )
-            printf 'server:\n';
             for key in ${!__server_info[@]}; do
                 printf '%-10s %s\n' ${key} ${__server_info[$key]};
             done
@@ -594,12 +593,6 @@ public::hubs(){
 
     case ${__action} in
         print )
-            printf 'server:\n';
-            for key in ${!__server_info[@]}; do
-                printf '%-10s %s\n' ${key} ${__server_info[$key]};
-            done
-
-            printf 'hub:\n\n';
             for key in ${!__hub_info[@]}; do
                 printf '%-10s %s\n' ${key} ${__hub_info[$key]};
             done
@@ -833,7 +826,6 @@ public::users(){
 
     case ${__action} in
         print )
-            printf 'user:\n';
             for key in ${!__user_info[@]}; do
                 printf '%-10s %s\n' ${key} ${__user_info[$key]};
             done
@@ -1095,7 +1087,6 @@ public::cascades(){
 
     case ${__action} in
         print )
-            printf 'peer:\n';
             for key in ${!__peer_info[@]}; do
                 printf '%-10s %s\n' $key ${__peer_info[$key]};
             done
