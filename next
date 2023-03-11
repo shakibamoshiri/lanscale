@@ -1151,7 +1151,6 @@ private::main_help(){
     printf "%-${HELP_OFFSET}s %s\n" '-D  | --debug-x' 'enable bash debugging (bash level)';
 
     printf "\ncommands:\n";
-    printf "%-${HELP_OFFSET}s %s\n" 'help' 'show help menu';
     printf "%-${HELP_OFFSET}s %s\n" 'servers' 'manage servers';
     printf "%-${HELP_OFFSET}s %s\n" 'hubs' 'manage hubs';
     printf "%-${HELP_OFFSET}s %s\n" 'users' 'manage users';
@@ -1191,6 +1190,7 @@ private::parse_options(){
     esac
 
     if (( ${#} != 0 )); then
+        shift 1;
         private::debug $LINENO continue-main: "'$@'";
         private::main "$@";
     fi
@@ -1202,7 +1202,7 @@ private::main(){
     fi
 
     case ${1} in
-        help | peers | servers | hubs | users | cascades )
+        servers | hubs | users | cascades )
             private::debug $LINENO 'command:' "'${1}'";
             private::debug $LINENO 'command-options:' "'${@:2}'";
             public::${1} "${@:2}";
