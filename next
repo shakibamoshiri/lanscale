@@ -1,10 +1,11 @@
 #!/bin/bash
-
+#
+# lanscale
+# scale you LAN in minutes using SoftEther VPN
+# Shakiba Moshiri (c) 20XX
 
 ################################################################################
-#
 # bash strict mode
-#
 ################################################################################
 private::strict_mode(){
     set -T # inherit DEBUG and RETURN trap for functions
@@ -44,195 +45,13 @@ declare -r ANSISHELL_HEADER='
  xxx
 LAN Scale using SoftEther VPN';
 
-
 declare -r __config_path='.';
 declare -r __config_file="${__config_path}/sample.2.yaml"
 declare -r __yaml="$(yq '.' < $__config_file)";
 
-#declare -A __server;
-#__server[host]=$(yq ".server.host" $__config_file);
-#__server[port]=$(yq ".server.port" $__config_file);
-#__server[pass]=$(yq ".server.pass" $__config_file);
-#__server[vpncmd]=$(yq ".server.vpncmd" $__config_file);
-#
-#declare -r vpncmd="${__server[vpncmd]} ${__server[host]}:${__server[port]} /server /password:${__server[pass]} "
-
-
-
-public::init(){
-    declare -A __peers;
-    declare __data __local_hub __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    while read -a objects; do
-        __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # HubCreate [name] [/PASSWORD:password]
-    { $vpncmd /cmd HubCreate $__local_hub /password:${__server[pass]} |& grep -A 3 ^HubCreate; } || true;
-
-    # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
-    $vpncmd /cmd BridgeCreate $__local_hub /tap:yes /device:${__peers[tap]} |& grep -A 3 ^BridgeCreate;
-
-    # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
-    $vpncmd /hub:$__local_hub /cmd CascadeCreate ${__peers[name]} /server:${__peers[host]}:${__peers[port]}  /hub:${__peers[hub]} /username:${__peers[user]} |& grep -A 3 ^CascadeCreate;
-
-    # CascadePasswordSet [name] [/PASSWORD:password] [/TYPE:standard|radius]
-    $vpncmd /hub:$__local_hub /cmd CascadePasswordSet ${__peers[name]} /password:${__peers[pass]} /type:standard  |& grep -A 3 ^CascadePasswordSet;
-}
-
-public::deinit(){
-    set +e;
-    declare -A __peers;
-    declare __data __local_hub __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    while read -a objects; do
-        __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # CascadeOffline [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeOffline ${__peers[name]} |& grep -A 3 ^CascadeOffline;
-
-    # CascadeDelete [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeDelete ${__peers[name]} |& grep -A 3 ^CascadeDelete;
-
-    # BridgeDelete [hubname] [/DEVICE:device_name]
-    $vpncmd /cmd  BridgeDelete $__local_hub /device:${__peers[tap]} |& grep -A 3 ^BridgeDelete;
-
-    # HubDelete [name]
-    { $vpncmd /cmd HubDel $__local_hub |& grep -A 3 ^HubDel; } || true;
-    set -e;
-}
-
-public::online(){
-    declare __data __local_hub __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # CascadeOnline [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeOnline $__p_cc_name |& grep ^CascadeOnline -A 100;
-}
-
-public::offline(){
-    declare __data __local_hub __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # CascadeOffline [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeOffline $__p_cc_name |& grep ^CascadeOffline -A 100;
-}
-
-public::up(){
-    declare -A __peers;
-    declare __data __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    while read -a objects; do
-        __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
-
-    ip address add ${__peers[ip]}/${__peers[subnet]} brd + dev ${__peers[tap]}
-    ip -brief  addr show dev ${__peers[tap]}
-}
-
-public::down(){
-    declare -A __peers;
-    declare __data __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    while read -a objects; do
-        __peers[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
-
-    ip address del ${__peers[ip]}/${__peers[subnet]} brd + dev ${__peers[tap]}
-}
-
-public::get(){
-    declare __data __local_hub __p_cc_name;
-
-    __p_cc_name=${1:? ... Error: __p_cc_name ?}
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # CascadeOnline [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeGet $__p_cc_name |& grep ^CascadeGet -A 100;
-}
-
-public::list(){
-    declare -A __local_hub __data;
-
-    if [[ -p /dev/stdin ]]; then
-        __data=$(< /dev/stdin);
-    else
-        exit $ERR_EXPR_FAILED;
-    fi
-
-    __local_hub=$(yq '.name' <<< $__data);
-
-    # CascadeOnline [name]
-    $vpncmd /hub:$__local_hub /cmd CascadeList |& grep ^CascadeList -A 1000;
-}
-
-
-
-
-
-
+################################################################################
+# servers commansd
+################################################################################
 private::server_install(){
     declare -n __server=$1;
 
@@ -286,7 +105,6 @@ private::server_install(){
         printf '%s has no match\n' ${__server[version]};
     fi
 }
-
 
 private::server_systemd(){
     declare -n __server=$1;
@@ -493,7 +311,7 @@ private::server_info(){
 # ServerPasswordSet    - Set VPN Server Administrator Password
 # ServerStatusGet      - Get Current Server Status
 public::servers(){
-    declare -A __s_info __action_list;
+    declare -A __server_info __action_list;
     declare -a __action_list_order;
     declare __s_name __s_action __server_version;
 
@@ -507,6 +325,7 @@ public::servers(){
     __action_list[pass]='set password for admin';
     __action_list[status]='get status of a server';
     __action_list[info]='get information of a server';
+    __action_list[print]='print yaml key-value';
 
     if [[ -z ${1:-} ]]; then
         while read name; do
@@ -518,7 +337,7 @@ public::servers(){
     __s_name="${1}";
 
     while read -a objects; do
-        __s_info[${objects[0]%:}]=${objects[1]};
+        __server_info[${objects[0]%:}]=${objects[1]};
     done < <(yq ".servers.${__s_name}" <<< "$__yaml");
 
     if [[ -z ${2:-} ]]; then
@@ -531,22 +350,28 @@ public::servers(){
     fi
 
 
-    if [[ -n  ${__s_info[link]:-} ]]; then
-        __s_info[version]='stable';
+    if [[ -n  ${__server_info[link]:-} ]]; then
+        __server_info[version]='stable';
 
     else
-        # echo repo: ${__s_info[repo]}
-        __s_info[version]='dev';
+        # echo repo: ${__server_info[repo]}
+        __server_info[version]='dev';
     fi
     
 
     case $__s_action in
+        print )
+            printf 'server:\n';
+            for key in ${!__server_info[@]}; do
+                printf '%-10s %s\n' ${key} ${__server_info[$key]};
+            done
+        ;;
         install | systemd | pass | start | stop | restart | status | info )
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
-                ssh ${__s_info[ssh]} "$(private::server_$__s_action __s_info)"
+                ssh ${__server_info[ssh]} "$(private::server_$__s_action __server_info)"
             elif [[ $REPLY == p ]]; then
-                private::server_$__s_action __s_info;
+                private::server_$__s_action __server_info;
             else
                 printf 'cancelled\n';
             fi
@@ -560,21 +385,35 @@ public::servers(){
 }
 
 
+################################################################################
+# hubs commands
+################################################################################
 private::hub_add(){
     declare -n __server=${1};
     declare -n __hub=${2};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
+        declare -x tap_net=${__hub[net]:-};
         # HubCreate [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
-            HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]} | column -s, -t;
+          HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]} | column -s, -t;
 
         # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
         # DO NOT ADD hub for /SERVER
         # it did not work
         ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
             BridgeCreate ${__hub[hub]} /TAP:yes /DEVICE:${__hub[hub]}
+
+        while true; do
+            if ! ip -br a show tap_${__hub[hub],,}; then
+                sleep 1
+                continue
+            else
+                ip address add \${tap_net} brd + dev tap_${__hub[hub],,}
+                break
+            fi
+        done
     }";
 
     eval "$lanscale_ssh_fn";
@@ -690,7 +529,7 @@ public::hubs(){
     declare -a __action_list_order;
     declare __server_name __hub_name __action __function;
 
-    __action_list_order=(add delete online offline status list);
+    __action_list_order=(add delete online offline status list print);
 
     __action_list[add]='add a hub'
     __action_list[delete]='delete a hub'
@@ -698,6 +537,7 @@ public::hubs(){
     __action_list[offline]='make a hub offline'
     __action_list[list]='list all hub(s)'
     __action_list[status]='status a hub offline'
+    __action_list[print]='print yaml key-value'
 
     ### match server name
     if [[ -z ${1:-} ]]; then
@@ -753,6 +593,17 @@ public::hubs(){
 
 
     case ${__action} in
+        print )
+            printf 'server:\n';
+            for key in ${!__server_info[@]}; do
+                printf '%-10s %s\n' ${key} ${__server_info[$key]};
+            done
+
+            printf 'hub:\n\n';
+            for key in ${!__hub_info[@]}; do
+                printf '%-10s %s\n' ${key} ${__hub_info[$key]};
+            done
+        ;;
         add | delete | online | offline | status | list )
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
@@ -772,22 +623,9 @@ public::hubs(){
     esac
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+################################################################################
+# users commands
+################################################################################
 private::user_add(){
     declare -n __server=${1};
     declare -n __hub=${2};
@@ -914,7 +752,7 @@ public::users(){
     declare -a __action_list_order;
     declare __server_name __hub_name __user_name __action __function;
 
-    __action_list_order=(add delete pass date set get list);
+    __action_list_order=(add delete pass date set get list print);
 
     __action_list[add]='add a user'
     __action_list[delete]='delete a user'
@@ -923,6 +761,7 @@ public::users(){
     __action_list[set]='update a user user information'
     __action_list[get]='get info for a user'
     __action_list[list]='list of users'
+    __action_list[print]='print yaml key-value'
 
     if [[ -z ${1:-} ]]; then
         while read name; do
@@ -993,6 +832,12 @@ public::users(){
     fi
 
     case ${__action} in
+        print )
+            printf 'user:\n';
+            for key in ${!__user_info[@]}; do
+                printf '%-10s %s\n' ${key} ${__user_info[$key]};
+            done
+        ;;
         add | delete | pass | date | set | get | list )
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
@@ -1012,7 +857,9 @@ public::users(){
     esac
 }
 
-
+################################################################################
+# cascades commands
+################################################################################
 private::cascade_add(){
     declare -n __server=${1};
     declare -n __hub=${2};
@@ -1087,6 +934,26 @@ private::cascade_online(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 
+private::cascade_offline(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __peer=${3}
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        test -f ${__server[cmd]}
+
+        # CascadeOnline [name]
+        ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            CascadeOffline ${__peer[name]}
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
 private::cascade_list(){
     declare -n __server=${1};
     declare -n __hub=${2};
@@ -1151,13 +1018,14 @@ public::cascades(){
     declare -a __action_list_order;
     declare __action __server_info_name __hub_name __peer_info_name;
 
-    __action_list_order=(add delete online offline list);
+    __action_list_order=(add delete online offline list print);
 
     __action_list[add]='add a cascade'
     __action_list[delete]='delete a cascade'
     __action_list[online]='make a cascade online'
     __action_list[offline]='make a cascade offline'
     __action_list[list]='list all cascades'
+    __action_list[print]='print yaml key-value'
 
     ### match server name
     if [[ -z ${1:-} ]]; then
@@ -1226,9 +1094,15 @@ public::cascades(){
     fi
 
     case ${__action} in
+        print )
+            printf 'peer:\n';
+            for key in ${!__peer_info[@]}; do
+                printf '%-10s %s\n' $key ${__peer_info[$key]};
+            done
+        ;;
         add | delete | online | offline | set | get | list )
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_info_name $__hub_name $__action;
-            printf 'peer < %s < %s < %s\n' ${__peer_info[host]} ${__peer_info[hub]} ${__peer_info[name]}
+            # printf 'peer < %s < %s < %s\n' ${__peer_info[host]} ${__peer_info[hub]} ${__peer_info[name]}
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
                  ssh ${__server_info[ssh]} "$(private::cascade_${__action} __server_info __hub_info __peer_info)";
@@ -1247,55 +1121,9 @@ public::cascades(){
 }
 
 
-
-public::peers(){
-    if [[ -z ${1:-} ]]; then
-        yq '.peers[].name' <<< "$__yaml"
-        exit $EXIT_SUCCESS;
-    fi
-
-    declare __local_hub="${1:? ... Error: peers hub name?}";
-    shift 1;
-
-    if [[ -z ${1:-} ]]; then
-        yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[].name" <<< "$__yaml"
-        exit $EXIT_SUCCESS;
-    fi
-
-    declare __p_cc_name="${1:? ... Error: peers hub cc name?}";
-    shift 1;
-
-    if [[ -z ${1:-} ]]; then
-        for cmd in print init deinit online offline up donw get list; do
-            printf '%s\n' $cmd;
-        done
-        exit $EXIT_SUCCESS;
-    fi
-    
-    declare __p_action="${1:? ... Error: peers hub cc action??}";
-
-    shift 1;
-    if [[ $__p_action == 'print' ]]; then
-        yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml";
-        # yq ".peers[] | select(.name==\"$__local_hub\") " <<< "$__yaml";
-    else
-        cd ${__server[vpncmd]%vpncmd};
-        # yq ".peers[] | select(.name==\"$__local_hub\") | .cascades[] | select(.name==\"$__p_cc_name\")" <<< "$__yaml" | public::${__p_action};
-        yq ".peers[] | select(.name==\"$__local_hub\")" <<< "$__yaml" | public::${__p_action} $__p_cc_name;
-    fi
-    # $vpncmd /hub:$__local_hub /cmd help;
-
-}
-
-
-
-
-
-
-
-
-
-
+################################################################################
+# main function
+################################################################################
 private::debug(){
     if [[ $SCRIPT_DEBUG_FLAG == true ]]; then
         private::warn "script($1)"  "${@:2}";
@@ -1370,7 +1198,6 @@ private::parse_options(){
         private::main "$@";
     fi
 }
-
 
 private::main(){
     if (( ${#} == 0 )); then
