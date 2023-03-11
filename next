@@ -1152,13 +1152,10 @@ private::main_help(){
 
     printf "\ncommands:\n";
     printf "%-${HELP_OFFSET}s %s\n" 'help' 'show help menu';
-    printf "%-${HELP_OFFSET}s %s\n" 'peers' 'a user functions';
-    printf "%-${HELP_OFFSET}s %s\n" 'init' 'a session functions';
-    printf "%-${HELP_OFFSET}s %s\n" 'deinit' 'read SE server admin yaml file';
-    printf "%-${HELP_OFFSET}s %s\n" 'online' 'send RPC-JSON to SE server';
-    printf "%-${HELP_OFFSET}s %s\n" 'offline' 'parse SE server response';
-    printf "%-${HELP_OFFSET}s %s\n" 'up' 'reset Bytes and Counts';
-    printf "%-${HELP_OFFSET}s %s\n" 'down' 'reset Bytes and Counts';
+    printf "%-${HELP_OFFSET}s %s\n" 'servers' 'manage servers';
+    printf "%-${HELP_OFFSET}s %s\n" 'hubs' 'manage hubs';
+    printf "%-${HELP_OFFSET}s %s\n" 'users' 'manage users';
+    printf "%-${HELP_OFFSET}s %s\n" 'cascades' 'manage cascade connections';
 
     exit ${1:-1};
 }
