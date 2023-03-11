@@ -39,11 +39,11 @@ declare -r CLI_NAME='lanscale';
 declare -r CLI_VERSION='0.0.1';
 declare -r CLI_INSTALL_PATH='/usr/local/bin';
 declare -r HELP_OFFSET=20;
-declare -r ANSISHELL_HEADER='
- xxx
- xxx
- xxx
-LAN Scale using SoftEther VPN';
+declare -r ANSISHELL_HEADER="\
+ ┬  ┌─┐┌┐┌┌─┐┌─┐┌─┐┬  ┌─┐
+ │  ├─┤│││└─┐│  ├─┤│  ├┤ 
+ ┴─┘┴ ┴┘└┘└─┘└─┘┴ ┴┴─┘└─┘
+ Scale Your LAN in minute";
 
 declare -r __config_path='.';
 declare -r __config_file="${__config_path}/sample.2.yaml"
