@@ -316,7 +316,7 @@ public::servers(){
     __action_list[status]='get status of a server';
     __action_list[info]='get information of a server';
     __action_list[print]='print yaml key-value';
-    __action_list[init]='install+systemd+start+pass+status';
+    __action_list[init]='install, systemd, pass, start, status';
 
     if [[ -z ${1:-} ]]; then
         while read name; do
