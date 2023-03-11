@@ -81,7 +81,7 @@ public::init(){
     { $vpncmd /cmd HubCreate $__local_hub /password:${__server[pass]} |& grep -A 3 ^HubCreate; } || true;
 
     # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
-    $vpncmd /cmd BridgeCreate $__local_hub /tap:yes /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeCreate;
+    $vpncmd /cmd BridgeCreate $__local_hub /tap:yes /device:${__peers[tap]} |& grep -A 3 ^BridgeCreate;
 
     # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
     $vpncmd /hub:$__local_hub /cmd CascadeCreate ${__peers[name]} /server:${__peers[host]}:${__peers[port]}  /hub:${__peers[hub]} /username:${__peers[user]} |& grep -A 3 ^CascadeCreate;
@@ -91,6 +91,7 @@ public::init(){
 }
 
 public::deinit(){
+    set +e;
     declare -A __peers;
     declare __data __local_hub __p_cc_name;
 
@@ -115,10 +116,11 @@ public::deinit(){
     $vpncmd /hub:$__local_hub /cmd CascadeDelete ${__peers[name]} |& grep -A 3 ^CascadeDelete;
 
     # BridgeDelete [hubname] [/DEVICE:device_name]
-    $vpncmd /cmd  BridgeDelete $__local_hub /device:${__peers[name]}_${__peers[hub]} |& grep -A 3 ^BridgeDelete;
+    $vpncmd /cmd  BridgeDelete $__local_hub /device:${__peers[tap]} |& grep -A 3 ^BridgeDelete;
 
     # HubDelete [name]
     { $vpncmd /cmd HubDel $__local_hub |& grep -A 3 ^HubDel; } || true;
+    set -e;
 }
 
 public::online(){
@@ -155,6 +157,44 @@ public::offline(){
     $vpncmd /hub:$__local_hub /cmd CascadeOffline $__p_cc_name |& grep ^CascadeOffline -A 100;
 }
 
+public::up(){
+    declare -A __peers;
+    declare __data __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
+
+    if [[ -p /dev/stdin ]]; then
+        __data=$(< /dev/stdin);
+    else
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    while read -a objects; do
+        __peers[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
+
+    ip address add ${__peers[ip]}/${__peers[subnet]} brd + dev ${__peers[tap]}
+    ip -brief  addr show dev ${__peers[tap]}
+}
+
+public::down(){
+    declare -A __peers;
+    declare __data __p_cc_name;
+
+    __p_cc_name=${1:? ... Error: __p_cc_name ?}
+
+    if [[ -p /dev/stdin ]]; then
+        __data=$(< /dev/stdin);
+    else
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    while read -a objects; do
+        __peers[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".cascades[] | select(.name==\"$__p_cc_name\")" <<< $__data);
+
+    ip address del ${__peers[ip]}/${__peers[subnet]} brd + dev ${__peers[tap]}
+}
 
 public::get(){
     declare __data __local_hub __p_cc_name;
