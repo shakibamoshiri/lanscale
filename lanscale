@@ -344,7 +344,7 @@ public::servers(){
         __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
     else
         __server_info[version]='dev';
-        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/build/vpncmd";
     fi
     
 
@@ -402,6 +402,8 @@ private::hub_add(){
                 break
             fi
         done
+
+        iptables -t nat -A POSTROUTING -s \${tap_net} ! -d \${tap_net} -o ${__hub[inet]} -j SNAT --to-source ${__hub[snat]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -547,7 +549,7 @@ public::hubs(){
         __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
     else
         __server_info[version]='dev';
-        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/build/vpncmd";
     fi
     
     private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
@@ -766,7 +768,7 @@ public::users(){
         __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
     else
         __server_info[version]='dev';
-        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/build/vpncmd";
     fi
     
     private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
