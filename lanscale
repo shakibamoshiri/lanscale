@@ -36,7 +36,7 @@ declare -ir CLI_PPID=$$;
 # declare -rA SUBCMD=([help]=help [config]=config [Test]=Test [EnumUser]=EnumUser);
 declare -r PS4='debug($LINENO) ${FUNCNAME[0]:+${FUNCNAME[0]}}(): ';
 declare -r CLI_NAME='lanscale';
-declare -r CLI_VERSION='0.0.1';
+declare -r CLI_VERSION='0.2.0';
 declare -r CLI_INSTALL_PATH='/usr/local/bin';
 declare -r HELP_OFFSET=20;
 declare -r ANSISHELL_HEADER="\
