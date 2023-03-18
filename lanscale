@@ -633,7 +633,7 @@ private::user_add(){
         set -x;
         # UserCreate [name] [/GROUP:group] [/REALNAME:realname] [/NOTE:note]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserCreate ${__user[username]} /GROUP: /REALNAME:${__user[realname]} /NOTE:${__user[note]};
+            UserCreate ${__user[user]} /GROUP: /REALNAME:${__user[real]} /NOTE:${__user[note]};
     }";
 
     eval "$lanscale_ssh_fn";
@@ -651,7 +651,7 @@ private::user_delete(){
         set -x;
         # UserDelete [name]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserDelete ${__user[username]};
+            UserDelete ${__user[user]};
     }";
 
     eval "$lanscale_ssh_fn";
@@ -668,7 +668,7 @@ private::user_pass(){
         set -x;
         # UserPasswordSet [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserPasswordSet ${__user[username]} /PASSWORD:${__user[password]}
+            UserPasswordSet ${__user[user]} /PASSWORD:${__user[pass]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -685,7 +685,7 @@ private::user_date(){
         set -x;
         # UserExpiresSet [name] [/EXPIRES:expires]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserExpiresSet ${__user[username]} /EXPIRES:\"${__user[expire]} 23:59:59\"
+            UserExpiresSet ${__user[user]} /EXPIRES:\"${__user[expire]} 23:59:59\"
     }";
 
     eval "$lanscale_ssh_fn";
@@ -702,7 +702,7 @@ private::user_set(){
         set -x;
         #  UserSet [name] [/GROUP:group] [/REALNAME:realname] [/NOTE:note]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserSet ${__user[username]} /GROUP:${__user[group]} /REALNAME:${__user[realname]} /NOTE:${__user[note]}
+            UserSet ${__user[user]} /GROUP:${__user[group]} /REALNAME:${__user[real]} /NOTE:${__user[note]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -719,7 +719,7 @@ private::user_get(){
         set -x;
         # UserGet [name]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
-            UserGet ${__user[username]} | column -s, -t
+            UserGet ${__user[user]} | column -s, -t
     }";
 
     eval "$lanscale_ssh_fn";
@@ -798,7 +798,7 @@ public::users(){
 
     while read -a objects; do
         __hub_info[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | del(.users)" <<< "$__yaml");
+    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | del(.members)" <<< "$__yaml");
 
     private::debug $LINENO '!__hub_info[@]:' "'${!__hub_info[@]}'";
     private::debug $LINENO '__hub_info[@]:' "'${__hub_info[@]}'";
@@ -806,7 +806,7 @@ public::users(){
     if [[ -z ${1:-} ]]; then
         while read name; do
             printf '%s\n' $name;
-        done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .users[].username " <<< "$__yaml");
+        done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .members[].user " <<< "$__yaml");
         exit $EXIT_SUCCESS;
     fi
 
@@ -814,9 +814,9 @@ public::users(){
     shift 1;
     while read -a objects; do
         __user_info[${objects[0]%:}]=${objects[1]};
-    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .users[] | select(.username==\"${__user_name}\") " <<< "$__yaml");
+    done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .members[] | select(.user==\"${__user_name}\") " <<< "$__yaml");
 
-    if [[ -z ${__user_info[username]:-} ]]; then
+    if [[ -z ${__user_info[user]:-} ]]; then
         printf 'user: %s not found in %s of server %s\n' $__user_name $__hub_name $__server_name;
         exit $ERR_EXPR_FAILED;
     fi
@@ -834,7 +834,7 @@ public::users(){
     case ${__action} in
         print )
             for key in ${!__user_info[@]}; do
-                printf '%-10s %s\n' ${key} ${__user_info[$key]};
+                printf '%-10s %s\n' ${key} ${__user_info[$key]}
             done
         ;;
         add | delete | pass | date | set | get | list )
