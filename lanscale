@@ -1110,6 +1110,40 @@ public::cascades(){
 ################################################################################
 # main function
 ################################################################################
+private::example(){
+    echo example for $CLI_NAME;
+    echo not implemented yet
+}
+
+private::cli_install(){
+    if which $CLI_NAME > /dev/null 2>&1 ; then
+        md5sum ./$CLI_NAME
+        md5sum $CLI_INSTALL_PATH/$CLI_NAME;
+        read -p "Already $CLI_NAME has been installed, want to overwrite [y/n]? " user_choice;
+        case $user_choice in
+            y )
+                sudo install $CLI_NAME -t $CLI_INSTALL_PATH/
+                which $CLI_NAME;
+            ;;
+            * )
+                printf "installing $0 cancelled\n";
+                exit $EXIT_SUCCESS;
+
+            ;;
+        esac
+    else
+        sudo install $CLI_NAME -t $CLI_INSTALL_PATH/
+        which $CLI_NAME;
+    fi
+
+    exit $?;
+}
+
+private::cli_version(){
+    printf "%s %s\n" $CLI_NAME $CLI_VERSION;
+    exit $EXIT_SUCCESS;
+}
+
 private::debug(){
     if [[ $SCRIPT_DEBUG_FLAG == true ]]; then
         private::warn "script($1)"  "${@:2}";
