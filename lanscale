@@ -1171,8 +1171,7 @@ public::help(){
 
     printf "\n\nusage:\n";
     printf "$CLI_NAME [--options]\n";
-    printf "$CLI_NAME command [--options]\n";
-    printf "$CLI_NAME [--options] command [--options]\n";
+    printf "$CLI_NAME [--options] command [select objects]\n";
 
     printf "\noptions:\n";
     printf "%-${HELP_OFFSET}s %s\n" '-h  | --help' 'show this help menu';
