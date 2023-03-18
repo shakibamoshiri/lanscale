@@ -34,7 +34,7 @@ declare -ir EXIT_SUCCESS=0;
 declare -ir CLI_PPID=$$;
 
 # declare -rA SUBCMD=([help]=help [config]=config [Test]=Test [EnumUser]=EnumUser);
-# declare -r PS4='debug($LINENO) ${FUNCNAME[0]:+${FUNCNAME[0]}}(): ';
+declare -r PS4='debug($LINENO) ${FUNCNAME[0]:+${FUNCNAME[0]}}(): ';
 declare -r CLI_NAME='lanscale';
 declare -r CLI_VERSION='0.0.1';
 declare -r CLI_INSTALL_PATH='/usr/local/bin';
@@ -45,9 +45,21 @@ declare -r ANSISHELL_HEADER="\
  ┴─┘┴ ┴┘└┘└─┘└─┘┴ ┴┴─┘└─┘
  Scale Your LAN in minute";
 
-declare -r __config_path='.';
-declare -r __config_file="${__config_path}/sample.2.yaml"
-declare -r __yaml="$(yq '.' < $__config_file)";
+declare -r __config_path='/etc/lanscale/yaml';
+
+# mutable variables
+declare __config_file="${__config_path}/lanscale.yaml"
+declare __yaml="";
+
+if [[ -f $__config_file ]]; then
+    __yaml="$(yq '.' < $__config_file)";
+else
+    if ! [[ -f ${1:-} ]]; then
+        private::warn "default '${CLI_NAME}.yaml' file not found";
+        private::warn "default ${CLI_NAME}.yaml file can be placed in: '${__config_path}'";
+        private::warn "expected file: '${__config_file}'";
+    fi
+fi
 
 ################################################################################
 # servers commansd
@@ -1154,7 +1166,7 @@ private::debug_x(){
     set -x;
 }
 
-private::main_help(){
+public::help(){
     printf "$ANSISHELL_HEADER";
 
     printf "\n\nusage:\n";
@@ -1181,12 +1193,12 @@ private::main_help(){
 
 private::parse_options(){
     if (( ${#} == 0 )); then
-        private::main_help 0;
+        public::help 0;
     fi
 
     case $1 in
         -h | --help )
-            private::main_help 0;
+            public::help 0;
         ;;
         -d | --debug )
             SCRIPT_DEBUG_FLAG=true
@@ -1210,19 +1222,42 @@ private::parse_options(){
     esac
 
     if (( ${#} != 0 )); then
-        shift 1;
-        private::debug $LINENO continue-main: "'$@'";
-        private::main "$@";
+        case ${1} in
+            help | servers | hubs | users | cascades )
+                private::debug $LINENO continue-main: "'$@'";
+                private::main "$@";
+            ;;
+            * )
+                printf "command: '%s' not found\n" $1;
+                exit $ERR_EXPR_FAILED;
+            ;;
+        esac
     fi
 }
 
 private::main(){
     if (( ${#} == 0 )); then
-        private::main_help 0;
+        if [[ -f $__config_file ]]; then
+            yq '. | keys | .[]' <<< $__yaml;
+            exit $EXIT_SUCCESS;
+        else
+            public::help 0;
+        fi
+    fi
+
+    if [[ -f ${1} ]]; then
+        __config_file="${PWD}/${1}"
+        __yaml="$(yq '.' < $__config_file)";
+        if (( ${#} > 1 )); then
+            shift 1;
+        else
+            yq '. | keys | .[]' ${1};
+            exit $EXIT_SUCCESS;
+        fi
     fi
 
     case ${1} in
-        servers | hubs | users | cascades )
+        help | servers | hubs | users | cascades )
             private::debug $LINENO 'command:' "'${1}'";
             private::debug $LINENO 'command-options:' "'${@:2}'";
             public::${1} "${@:2}";
