@@ -62,6 +62,18 @@ else
 fi
 
 ################################################################################
+# utilit functions
+################################################################################
+
+# some SE server /CSV output field contain ","
+# this function is for removing these
+parse_csv(){
+    if [[ -p /dev/stdin ]]; then
+        cat /dev/stdin | perl -lne 'while (s/("[^",]+),/\1/g) { /"\d+","\d+"/ && s/"//g && print }' | column -s, -t
+    fi
+}
+
+################################################################################
 # servers commansd
 ################################################################################
 private::server_install(){
@@ -271,7 +283,7 @@ private::server_status(){
                 break
             fi
         done
-        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerStatusGet | column -s, -t;
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerStatusGet 
     }";
 
     eval "$lanscale_server_status";
@@ -418,6 +430,8 @@ private::hub_add(){
         done
 
         iptables -t nat -A POSTROUTING -s \${tap_net} ! -d \${tap_net} -o ${__hub[inet]} -j SNAT --to-source ${__hub[snat]}
+        sysctl -w net.ipv4.ip_forward=1
+        sysctl -p
     }";
 
     eval "$lanscale_ssh_fn";
@@ -738,11 +752,11 @@ private::user_list(){
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
-            UserList | column -s, -t
+            UserList | parse_csv
     }";
 
     eval "$lanscale_ssh_fn";
-    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+    lanscale_ssh_fn="$(declare -f parse_csv lanscale_ssh_fn); lanscale_ssh_fn;"
 
     printf '%s\n' "$lanscale_ssh_fn";
 }
