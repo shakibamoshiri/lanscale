@@ -163,7 +163,8 @@ private::server_pass(){
     declare lanscale_server_pass="function lanscale_server_pass(){
         set -x;
         test -f ${__server[cmd]}
-        ${__server[cmd]%/*}/vpnserver start
+        cd ${__server[cmd]%/*}
+        ./vpnserver start
         while true; do
             if ! curl -sk https://127.0.0.1:443 -o /dev/null; then
                 sleep 1
@@ -174,7 +175,8 @@ private::server_pass(){
         done
         ${__server[cmd]} localhost:443 /SERVER /PASSWORD: /CSV /CMD  ServerPasswordSet ${__server[pass]}
         ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD HubDel DEFAULT
-        ${__server[cmd]%/*}/vpnserver stop
+        cd ${__server[cmd]%/*}
+        ./vpnserver stop
     }";
 
     eval "$lanscale_server_pass";
