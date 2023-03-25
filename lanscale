@@ -640,7 +640,7 @@ public::hubs(){
 ################################################################################
 # users commands
 ################################################################################
-private::user_add(){
+private::user_create(){
     declare -n __server=${1};
     declare -n __hub=${2};
     declare -n __user=${3};
@@ -763,20 +763,27 @@ private::user_list(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 
+private::user_add(){
+    private::user_create $@;
+    private::user_pass $@;
+    private::user_date $@;
+}
+
 public::users(){
     declare -A __server_info __user_info __hub_info __action_list;
     declare -a __action_list_order;
     declare __server_name __hub_name __user_name __action __function;
 
-    __action_list_order=(add delete pass date set get list print);
+    __action_list_order=(create delete pass date set get list add print);
 
-    __action_list[add]='add a user'
+    __action_list[create]='create a user'
     __action_list[delete]='delete a user'
     __action_list[pass]='set password for a user'
     __action_list[date]='set expire date date for a user'
     __action_list[set]='update a user user information'
     __action_list[get]='get info for a user'
     __action_list[list]='list of users'
+    __action_list[add]='create, pass, date'
     __action_list[print]='print yaml key-value'
 
     if [[ -z ${1:-} ]]; then
@@ -855,7 +862,7 @@ public::users(){
                 printf '%-10s %s\n' ${key} ${__user_info[$key]}
             done
         ;;
-        add | delete | pass | date | set | get | list )
+        create | delete | pass | date | set | get | list | add )
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
