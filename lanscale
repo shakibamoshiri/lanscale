@@ -697,11 +697,13 @@ private::user_date(){
     declare -n __hub=${2};
     declare -n __user=${3};
 
+    declare expire_date=$(date -d "+ ${__user[expire]} days" '+%Y/%m/%d');
+
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         # UserExpiresSet [name] [/EXPIRES:expires]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            UserExpiresSet ${__user[user]} /EXPIRES:\"${__user[expire]} 23:59:59\"
+            UserExpiresSet ${__user[user]} /EXPIRES:\"$expire_date 23:59:59\"
     }";
 
     eval "$lanscale_ssh_fn";
