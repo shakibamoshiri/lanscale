@@ -283,7 +283,7 @@ private::server_status(){
                 break
             fi
         done
-        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerStatusGet 
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerStatusGet  | csvlook
     }";
 
     eval "$lanscale_server_status";
@@ -298,7 +298,7 @@ private::server_info(){
     declare lanscale_server_info="function lanscale_server_info(){
         set -x;
         test -f ${__server[cmd]}
-        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerInfoGet | column -s, -t;
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD ServerInfoGet | csvlook
     }";
 
     eval "$lanscale_server_info";
@@ -411,7 +411,7 @@ private::hub_add(){
         declare -x tap_net=${__hub[net]:-};
         # HubCreate [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
-          HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]} | column -s, -t;
+          HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]}
 
         # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
         # DO NOT ADD hub for /SERVER
@@ -468,7 +468,7 @@ private::hub_online(){
         set -x;
         # Hub/Online
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            Online | column -s, -t;
+            Online
     }";
 
     eval "$lanscale_ssh_fn";
@@ -485,7 +485,7 @@ private::hub_offline(){
         set -x;
         # Hub/Offline
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            Offline | column -s, -t;
+            Offline
     }";
 
     eval "$lanscale_ssh_fn";
@@ -502,7 +502,7 @@ private::hub_status(){
         set -x;
         # Hub/StatusGet
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
-            StatusGet | column -s, -t;
+            StatusGet | csvlook
     }";
 
     eval "$lanscale_ssh_fn";
@@ -519,7 +519,7 @@ private::hub_list(){
         set -x;
         # HubList
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
-            HubList | column -s, -t;
+            HubList | csvlook
     }";
 
     eval "$lanscale_ssh_fn";
@@ -735,7 +735,7 @@ private::user_get(){
         set -x;
         # UserGet [name]
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
-            UserGet ${__user[user]} | column -s, -t
+            UserGet ${__user[user]} | csvlook
     }";
 
     eval "$lanscale_ssh_fn";
@@ -752,11 +752,11 @@ private::user_list(){
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
         ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV  /CMD \
-            UserList | parse_csv
+            UserList | csvlook
     }";
 
     eval "$lanscale_ssh_fn";
-    lanscale_ssh_fn="$(declare -f parse_csv lanscale_ssh_fn); lanscale_ssh_fn;"
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
 
     printf '%s\n' "$lanscale_ssh_fn";
 }
@@ -920,7 +920,7 @@ private::cascade_delete(){
 
         # CascadeDelete [name]
         ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
-            CascadeDelete ${__peer[name]} | column -s, -t
+            CascadeDelete ${__peer[name]}
     }";
 
     eval "$lanscale_ssh_fn";
@@ -985,7 +985,7 @@ private::cascade_list(){
         # ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
 
         ${__server[cmd]} localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
-            CascadeList | column -s, -t
+            CascadeList | csvlook
     }";
 
     eval "$lanscale_ssh_fn";
