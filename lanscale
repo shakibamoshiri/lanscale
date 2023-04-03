@@ -78,12 +78,19 @@ parse_csv(){
 ################################################################################
 private::server_install(){
     declare -n __server=$1;
+    declare pre_server_install="function pre_server_install(){
+        set -x;
+        apt-get update -y
+        apt-get install -y build-essential git curl tree wget pip python3
+        pip install csvkit
+    }";
+    eval "$pre_server_install";
+    pre_server_install="$(declare -f pre_server_install); pre_server_install;"
+    printf '%s\n' "$pre_server_install";
 
     if [[ ${__server[version]} == stable ]]; then
         declare lanscale_server_install="function lanscale_server_install(){
-            set -x;
-            apt-get update -y
-            apt-get install -y build-essential git curl tree wget
+            set -x
             mkdir -p ${__server[path]}
             cd ${__server[path]}
             ls -la
@@ -104,9 +111,8 @@ private::server_install(){
         printf '%s\n' "$lanscale_server_install";
     elif [[ ${__server[version]} == 'dev' ]]; then
         declare lanscale_server_install="function lanscale_server_install(){
-            set -x;
+            set -x
             apt-get update -y
-            apt-get install -y build-essential git curl tree wget
             apt-get install -y cmake gcc g++ make libncurses5-dev libssl-dev libsodium-dev libreadline-dev zlib1g-dev pkg-config
             mkdir -p ${__server[path]}
             cd ${__server[path]}
