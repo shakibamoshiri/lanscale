@@ -829,9 +829,9 @@ public::users(){
     private::debug $LINENO '__hub_info[@]:' "'${__hub_info[@]}'";
 
     if [[ -z ${1:-} ]]; then
-        while read name; do
-            printf '%s\n' $name;
-        done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .members[].user " <<< "$__yaml");
+        while read user real; do
+            printf '%s %s\n' $user $real;
+        done < <(yq ".users.${__server_name}[] | select(.hub==\"${__hub_name}\") | .members[] | .user + \" \" + .real" <<< "$__yaml");
         exit $EXIT_SUCCESS;
     fi
 
@@ -869,6 +869,237 @@ public::users(){
                  ssh ${__server_info[ssh]} "$(private::user_${__action} __server_info __hub_info __user_info)";
             elif [[ $REPLY == p ]]; then
                 private::user_${__action} __server_info __hub_info __user_info;
+            else
+                printf 'cancelled\n';
+            fi
+
+        ;;
+        * )
+            printf 'action %s not found\n' $__action;
+            exit $ERR_EXPR_FAILED;
+        ;;
+    esac
+}
+
+################################################################################
+# groups commands
+################################################################################
+private::group_create(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __group=${3};
+    declare -n __policy=${4};
+    declare group_policy_set='';
+    for key in ${!__policy[@]}; do
+        group_policy_set+="${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV  /CMD GroupPolicySet ${__group[name]} /NAME:$key /VALUE:${__policy[$key]}";
+        group_policy_set+=$'\n';
+    done
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # GroupCreate [name] [/REALNAME:realname] [/NOTE:note]
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV  /CMD \
+            GroupCreate ${__group[name]} /REALNAME:${__group[real]} /NOTE:${__group[note]}
+
+        # GroupPolicySet [name] [/NAME:policy_name] [/VALUE:num|yes|no]
+        $group_policy_set
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::group_delete(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __group=${3};
+    declare -n __policy=${4};
+    
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            GroupDelete ${__group[name]}
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::group_get(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __group=${3};
+    declare -n __policy=${4};
+    
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # GroupGet [name]
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            GroupGet ${__group[name]} | column -s, -t
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::group_set(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __group=${3};
+    declare -n __policy=${4};
+    
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        # GroupSet [name] [/REALNAME:realname] [/NOTE:note]
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            GroupSet ${__group[name]} /REALNAME:${__group[real]} /NOTE:${__group[note]}
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::group_list(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+    declare -n __group=${3};
+    declare -n __policy=${4};
+    
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[name]} /PASSWORD:${__server[pass]} /CSV  /CMD \
+            GroupList | csvlook
+    }";
+
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
+
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+# GroupCreate       - Create Group
+# GroupDelete       - Delete Group
+# GroupGet          - Get Group Information and List of Assigned Users
+# GroupJoin         - Add User to Group
+# GroupList         - Get List of Groups
+# GroupPolicyRemove - Delete Group Security Policy
+# GroupPolicySet    - Set Group Security Policy
+# GroupSet          - Set Group Information
+# GroupUnjoin       - Delete User from Group
+public::groups(){
+    declare -A __server_info __group_info __hub_info __policy_info __action_list;
+    declare -a __action_list_order;
+    declare __server_name __hub_name __group_name __action __function;
+
+    __action_list_order=(create delete set get list print);
+
+    __action_list[create]='create a group'
+    __action_list[delete]='delete a group'
+    __action_list[set]='update a group information'
+    __action_list[get]='get info for a group'
+    __action_list[list]='list of groups'
+    __action_list[print]='print yaml key-value'
+
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq '.groups | keys | .[]' <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+    __server_name="${1:? ... Error: __server_name ?}";
+    shift 1;
+
+    ### lookup server info in .servers
+    while read -a objects; do
+        __server_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".servers.${__server_name}" <<< "$__yaml");
+
+    if [[ -n  ${__server_info[link]:-} ]]; then
+        __server_info[version]='stable';
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/vpncmd";
+    else
+        __server_info[version]='dev';
+        __server_info[cmd]="${__server_info[path]}/${__server_info[version]}/build/vpncmd";
+    fi
+    
+    private::debug $LINENO '!__server_info[@]:' "'${!__server_info[@]}'";
+    private::debug $LINENO '__server_info[@]:' "'${__server_info[@]}'";
+
+    ### find hub name
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq ".groups.${__server_name}[].hub" <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+
+    __hub_name=${1};
+    __hub_info[name]=${1};
+    shift 1;
+
+    private::debug $LINENO '!__hub_info[@]:' "'${!__hub_info[@]}'";
+    private::debug $LINENO '__hub_info[@]:' "'${__hub_info[@]}'";
+
+    ### print name to select from
+    if [[ -z ${1:-} ]]; then
+        while read name; do
+            printf '%s\n' $name;
+        done < <(yq ".groups.${__server_name}[] | select(.hub==\"${__hub_name}\") | .list[].name" <<< "$__yaml");
+        exit $EXIT_SUCCESS;
+    fi
+
+    __group_name=${1};
+    shift 1;
+
+    ### map group info
+    while read -a objects; do
+        __group_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".groups.${__server_name}[] | select(.hub==\"${__hub_name}\") | .list[] | select(.name==\"${__group_name}\") | del(.policy)" <<< "$__yaml");
+    
+    ### map policy info
+    while read -a objects; do
+        __policy_info[${objects[0]%:}]=${objects[1]};
+    done < <(yq ".groups.${__server_name}[] | select(.hub==\"${__hub_name}\") | .list[] | select(.name==\"${__group_name}\") | .policy" <<< "$__yaml");
+
+    if [[ -z ${__group_info[name]:-} ]]; then
+        printf 'group: %s not found in %s of server %s\n' $__group_name $__hub_name $__server_name;
+        exit $ERR_EXPR_FAILED;
+    fi
+
+    # print actions
+    if [[ -z ${1:-} ]]; then
+        for value in ${__action_list_order[@]}; do
+            printf '%-10s %s\n' $value "${__action_list[$value]}"
+        done
+        exit $EXIT_SUCCESS;
+    else
+        __action="$1";
+    fi
+
+    case ${__action} in
+        print )
+            for key in ${!__group_info[@]}; do
+                printf '%-10s %s\n' ${key} ${__group_info[$key]}
+            done
+            for key in ${!__policy_info[@]}; do
+                printf '%-20s %s\n' ${key} ${__policy_info[$key]}
+            done
+        ;;
+        create | delete | get | set | list )
+            printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
+            read -p 'continue? [p/n/Y] ';
+            if [[ $REPLY == Y || $REPLY == y ]]; then
+                 ssh ${__server_info[ssh]} "$(private::group_${__action} __server_info __hub_info __group_info __policy_info)";
+            elif [[ $REPLY == p ]]; then
+                private::group_${__action} __server_info __hub_info __group_info __policy_info;
             else
                 printf 'cancelled\n';
             fi
@@ -1247,7 +1478,7 @@ private::parse_options(){
 
     if (( ${#} != 0 )); then
         case ${1} in
-            help | servers | hubs | users | cascades )
+            help | servers | hubs | users | groups | cascades )
                 private::debug $LINENO continue-main: "'$@'";
                 private::main "$@";
             ;;
@@ -1281,7 +1512,7 @@ private::main(){
     fi
 
     case ${1} in
-        help | servers | hubs | users | cascades )
+        help | servers | hubs | users | groups | cascades )
             private::debug $LINENO 'command:' "'${1}'";
             private::debug $LINENO 'command-options:' "'${@:2}'";
             public::${1} "${@:2}";
