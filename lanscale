@@ -428,13 +428,13 @@ public::servers(){
 ################################################################################
 # hubs commands
 ################################################################################
-private::hub_add(){
+private::hub_create(){
     declare -n __server=${1};
     declare -n __hub=${2};
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        declare -x tap_net=${__hub[net]:-};
+
         # HubCreate [name] [/PASSWORD:password]
         ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
           HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]}
@@ -442,20 +442,61 @@ private::hub_add(){
         # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
         # DO NOT ADD hub for /SERVER
         # it did not work
-        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
-            BridgeCreate ${__hub[hub]} /TAP:yes /DEVICE:${__hub[hub]}
+        ${__server[cmd]} localhost:443 /SERVER /HUB /PASSWORD:${__server[pass]} /CSV /CMD \
+            BridgeCreate ${__hub[hub]} /DEVICE:if4${__hub[hub],,}
+    }";
 
-        while true; do
-            if ! ip -br a show tap_${__hub[hub],,}; then
-                sleep 1
-                continue
-            else
-                ip address add \${tap_net} brd + dev tap_${__hub[hub],,}
-                break
-            fi
-        done
+    eval "$lanscale_ssh_fn";
+    lanscale_ssh_fn="$(declare -f lanscale_ssh_fn); lanscale_ssh_fn;"
 
-        iptables -t nat -A POSTROUTING -s \${tap_net} ! -d \${tap_net} -o ${__hub[inet]} -j SNAT --to-source ${__hub[snat]}
+    printf '%s\n' "$lanscale_ssh_fn";
+}
+
+private::hub_add(){
+    declare -n __server=${1};
+    declare -n __hub=${2};
+
+    declare lanscale_ssh_fn="function lanscale_ssh_fn(){
+        set -x;
+        declare -x tap_net=${__hub[net]:-};
+
+        ip link add name if4${__hub[hub],,} type veth peer name gw4${__hub[hub],,}
+        ip link set if4${__hub[hub],,} up
+        ip link set gw4${__hub[hub],,} up
+        ip addr add ${__hub[net]} brd + dev gw4${__hub[hub],,}
+
+        # HubCreate [name] [/PASSWORD:password]
+        ${__server[cmd]} localhost:443 /SERVER /HUB: /PASSWORD:${__server[pass]} /CSV /CMD \
+          HubCreate ${__hub[hub]} /PASSWORD:${__server[pass]}
+
+        # BridgeCreate [hubname] [/DEVICE:device_name] [/TAP:yes|no]
+        # DO NOT ADD hub for /SERVER
+        # it did not work
+        ${__server[cmd]} localhost:443 /SERVER /HUB /PASSWORD:${__server[pass]} /CSV /CMD \
+            BridgeCreate ${__hub[hub]} /DEVICE:if4${__hub[hub],,}
+
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            SecureNatHostSet /MAC:none /IP:${__hub[net]/?\/24/2} /MASK:255.255.255.0
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            DhcpEnable
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            DhcpSet /START:${__hub[net]/?\/24/10} /END:${__hub[net]/?\/24/210} /MASK:255.255.255.0 /EXPIRE:7200 /GW:${__hub[net]/?\/24/1} /DNS:8.8.8.8  /DNS2: /DOMAIN: /LOG:yes
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            NatDisable
+        ${__server[cmd]} localhost:443 /SERVER /HUB:${__hub[hub]} /PASSWORD:${__server[pass]} /CSV /CMD \
+            SecureNatEnable
+
+        # while true; do
+        #     if ! ip -br a show tap_${__hub[hub],,}; then
+        #         sleep 1
+        #         continue
+        #     else
+        #         ip address add \${tap_net} brd + dev tap_${__hub[hub],,}
+        #         break
+        #     fi
+        # done
+
+        iptables -t nat -A POSTROUTING -s ${__hub[net]/?\//0/} ! -d ${__hub[net]/?\//0/} -o ${__hub[inet]} -j SNAT --to-source ${__hub[snat]}
         sysctl -w net.ipv4.ip_forward=1
         sysctl -p
     }";
@@ -573,14 +614,15 @@ public::hubs(){
     declare -a __action_list_order;
     declare __server_name __hub_name __action __function;
 
-    __action_list_order=(add delete online offline status list print);
+    __action_list_order=(create delete online offline status list add print);
 
-    __action_list[add]='add a hub'
+    __action_list[create]='add a hub'
     __action_list[delete]='delete a hub'
     __action_list[online]='make a hub online'
     __action_list[offline]='make a hub offline'
     __action_list[list]='list all hub(s)'
     __action_list[status]='status a hub offline'
+    __action_list[add]='create, bridge, ...'
     __action_list[print]='print yaml key-value'
 
     ### match server name
@@ -644,7 +686,7 @@ public::hubs(){
                 printf '%-10s %s\n' ${key} ${__hub_info[$key]};
             done
         ;;
-        add | delete | online | offline | status | list )
+        create | delete | online | offline | status | list | add)
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_name $__hub_name $__action;
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
@@ -1141,7 +1183,7 @@ public::groups(){
 ################################################################################
 # cascades commands
 ################################################################################
-private::cascade_add(){
+private::cascade_create(){
     declare -n __server=${1};
     declare -n __hub=${2};
     declare -n __peer=${3};
@@ -1156,9 +1198,6 @@ private::cascade_add(){
 
     declare lanscale_ssh_fn="function lanscale_ssh_fn(){
         set -x;
-        test -f ${__bin_path}/vpncmd
-        test -f ${__bin_path}/vpnserver
-
         # CascadeCreate [name] [/SERVER:hostname:port] [/HUB:hubname] [/USERNAME:username]
         # CascadeCreate ${__peer[name]} /server:${__peer[host]}:${__peer[port]}  /HUB:${__peer[hub]} /USERNAME:${__peer[user]}
         $__bin_path/vpncmd localhost:443 /HUB:${__hub[hub]} /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
@@ -1260,6 +1299,11 @@ private::cascade_list(){
     printf '%s\n' "$lanscale_ssh_fn";
 }
 
+private::cascade_add(){
+    private::cascade_create $@;
+    private::cascade_online $@;
+}
+
 # CascadeAnonymousSet      - Set User Authentication Type of Cascade Connection to Anonymous Authentication
 # CascadeCertGet           - Get Client Certificate to Use for Cascade Connection
 # CascadeCertSet           - Set User Authentication Type of Cascade Connection to Client Certificate Authentication
@@ -1299,13 +1343,14 @@ public::cascades(){
     declare -a __action_list_order;
     declare __action __server_info_name __hub_name __peer_info_name;
 
-    __action_list_order=(add delete online offline list print);
+    __action_list_order=(create delete online offline list add print);
 
-    __action_list[add]='add a cascade'
+    __action_list[create]='create a cascade'
     __action_list[delete]='delete a cascade'
     __action_list[online]='make a cascade online'
     __action_list[offline]='make a cascade offline'
     __action_list[list]='list all cascades'
+    __action_list[add]='create, online'
     __action_list[print]='print yaml key-value'
 
     ### match server name
@@ -1380,7 +1425,7 @@ public::cascades(){
                 printf '%-10s %s\n' $key ${__peer_info[$key]};
             done
         ;;
-        add | delete | online | offline | set | get | list )
+        create | delete | online | offline | set | get | list | add)
             printf '%s > %s > %s > %s\n' ${FUNCNAME##*:} $__server_info_name $__hub_name $__action;
             # printf 'peer < %s < %s < %s\n' ${__peer_info[host]} ${__peer_info[hub]} ${__peer_info[name]}
             read -p 'continue? [p/n/Y] ';
