@@ -203,6 +203,25 @@ private::server_pass(){
     printf '%s\n' "$lanscale_server_pass";
 }
 
+private::server_cert(){
+    declare -n __server=$1;
+    declare lanscale_server_cert cert_path key_path;
+    cert_path="${__server[cert]}/cert.pem";
+    key_path="${__server[cert]}/privkey.pem";
+
+    lanscale_server_cert="function lanscale_server_cert(){
+        set -x;
+        ### ServerCertSet [/LOADCERT:cert] [/LOADKEY:key]
+        ${__server[cmd]} localhost:443 /SERVER /PASSWORD:${__server[pass]} /CSV /CMD \
+            ServerCertSet /LOADCERT:$cert_path /LOADKEY:$key_path
+    }";
+
+    eval "$lanscale_server_cert";
+    lanscale_server_cert="$(declare -f lanscale_server_cert); lanscale_server_cert;"
+
+    printf '%s\n' "$lanscale_server_cert";
+}
+
 private::server_start(){
     declare -n __server=$1;
     declare lanscale_server_start;
@@ -335,7 +354,7 @@ public::servers(){
     declare -a __action_list_order;
     declare __s_name __s_action __server_version;
 
-    __action_list_order=(install systemd pass start stop restart status info init);
+    __action_list_order=(install systemd pass cert start stop restart status info init);
 
     __action_list[install]='install SoftEther VPN server'
     __action_list[systemd]='install systemd service'
@@ -343,6 +362,7 @@ public::servers(){
     __action_list[stop]='stop systemd service'
     __action_list[restart]='restart systemd service';
     __action_list[pass]='set password for admin';
+    __action_list[cert]='set server certificate';
     __action_list[status]='get status of a server';
     __action_list[info]='get information of a server';
     __action_list[print]='print yaml key-value';
@@ -386,7 +406,7 @@ public::servers(){
                 printf '%-10s %s\n' ${key} ${__server_info[$key]};
             done
         ;;
-        install | systemd | pass | start | stop | restart | status | info | init )
+        install | systemd | pass | cert | start | stop | restart | status | info | init )
             read -p 'continue? [p/n/Y] ';
             if [[ $REPLY == Y || $REPLY == y ]]; then
                 ssh ${__server_info[ssh]} "$(private::server_$__s_action __server_info)"
